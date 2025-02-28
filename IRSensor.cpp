@@ -32,11 +32,20 @@ IRSensor::~IRSensor() {}
  * @return a distance value, given in [m].
  */
 float IRSensor::read() {
-    bit0 = 1; // Wahl des Sensors mit dem Multiplexer (Sensor vorne)
-    bit1 = 1;
-    bit2 = 0;
-
-    float d = 0.09f/(distance + 0.001f)-0.03f; // Lesen der Distanz in [m]
+    
+    bit0 = (number >> 0) & 1;
+    bit1 = (number >> 1) & 1;
+    bit2 = (number >> 2) & 1;
+    
+    float d = 0.09f/(distance+0.001f)-0.03f;  // calculate the distance in [m]
     
     return d;
+}
+
+/**
+ * The empty operator is a shorthand notation of the <code>read()</code> method.
+ */
+IRSensor::operator float() {
+    
+    return read();
 }
