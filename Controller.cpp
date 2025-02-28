@@ -12,7 +12,7 @@ const float Controller::PERIOD = 0.001f;                    // period of control
 const float Controller::COUNTS_PER_TURN = 1200.0f;          // encoder resolution (pololu motors: 1200.0f, maxon motors: 86016.0f)
 const float Controller::LOWPASS_FILTER_FREQUENCY = 300.0f;  // given in [rad/s]
 const float Controller::KN = 40.0f;                         // speed constant in [rpm/V] (pololu motors: 40.0f, maxon motors: 45.0f)
-const float Controller::KP = 0.01f;                         // speed control parameter
+const float Controller::KP = 0.2f;                          // speed control parameter
 const float Controller::MAX_VOLTAGE = 12.0f;                // battery voltage in [V]
 const float Controller::MIN_DUTY_CYCLE = 0.02f;             // minimum duty-cycle
 const float Controller::MAX_DUTY_CYCLE = 0.98f;             // maximum duty-cycle
@@ -118,11 +118,9 @@ void Controller::run() {
         actualSpeedRight = speedRightFilter.filter((float)countsInPastPeriodRight/COUNTS_PER_TURN/PERIOD*60.0f);
 
         // calculate desired motor voltages Uout
-
-        // bitte implementieren!
         
-        //float voltageLeft = ...
-        //float voltageRight = ...
+        float voltageLeft = KP * (desiredSpeedLeft - actualSpeedLeft) + desiredSpeedLeft / KN;
+        float voltageRight = KP  * (desiredSpeedRight - actualSpeedRight) + desiredSpeedRight / KN;
 
         // calculate, limit and set the duty-cycle
 
@@ -136,4 +134,13 @@ void Controller::run() {
         else if (dutyCycleRight > MAX_DUTY_CYCLE) dutyCycleRight = MAX_DUTY_CYCLE;
         pwmRight = dutyCycleRight;
     }
+}
+
+float   Controller::getActualSpeedLeft(){
+    return actualSpeedLeft;
+}
+
+
+float   Controller::getActualSpeedRight(){
+    return actualSpeedRight;
 }

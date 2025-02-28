@@ -25,6 +25,8 @@ class Controller {
         virtual ~Controller();
         void    setDesiredSpeedLeft(float desiredSpeedLeft);
         void    setDesiredSpeedRight(float desiredSpeedRight);
+        float   getActualSpeedLeft();
+        float   getActualSpeedRight();
         
     private:
         
