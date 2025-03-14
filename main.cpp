@@ -9,13 +9,11 @@
 #include "IRSensor.h"
 #include "EncoderCounter.h"
 #include "Controller.h"
-#include "StateMachine.h"
 
 int main() {
     
     // create miscellaneous periphery objects
     
-    DigitalIn button(BUTTON1);
     DigitalOut led(LED1);
     
     DigitalOut led0(PD_4);
@@ -54,14 +52,25 @@ int main() {
     EncoderCounter counterLeft(PD_12, PD_13);
     EncoderCounter counterRight(PB_4, PC_7);
     
-    // create robot controller objects
+    enableMotorDriver = 1;
+    
+    // create robot controller object
     
     Controller controller(pwmLeft, pwmRight, counterLeft, counterRight);
-    StateMachine stateMachine(controller, enableMotorDriver, led0, led1, led2, led3, led4, led5, button, irSensor0, irSensor1, irSensor2, irSensor3, irSensor4, irSensor5);
+    
+    controller.setTranslationalVelocity(0.2f);
+    controller.setRotationalVelocity(0.5f);
     
     while (true) {
         
         led = !led;
+        
+        led0 = irSensor0 < 0.2f;
+        led1 = irSensor1 < 0.2f;
+        led2 = irSensor2 < 0.2f;
+        led3 = irSensor3 < 0.2f;
+        led4 = irSensor4 < 0.2f;
+        led5 = irSensor5 < 0.2f;
         
         printf("actual velocity: %.3f [m/s] / %.3f [rad/s]\r\n", controller.getActualTranslationalVelocity(), controller.getActualRotationalVelocity());
         
