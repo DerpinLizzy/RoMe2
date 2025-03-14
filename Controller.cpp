@@ -142,21 +142,16 @@ void Controller::run() {
         
         // calculate the values 'desiredSpeedLeft' and 'desiredSpeedRight' using the kinematic model
         
+        desiredSpeedLeft = (translationalVelocity-WHEEL_DISTANCE/2.0f*rotationalVelocity)/WHEEL_RADIUS*60.0f/2.0f/M_PI;
+        desiredSpeedRight = -(translationalVelocity+WHEEL_DISTANCE/2.0f*rotationalVelocity)/WHEEL_RADIUS*60.0f/2.0f/M_PI;
         
-        // bitte implementieren!
+        // calculate planned speedLeft and speedRight values using the motion planner
         
-        // desiredSpeedLeft = ...
-        // desiredSpeedRight = ...
+        motionLeft.incrementToVelocity(desiredSpeedLeft, PERIOD);
+        motionRight.incrementToVelocity(desiredSpeedRight, PERIOD);
         
-        
-        // calculate planned speed left and speed right values using the motion planner
-        
-        
-        // bitte implementieren!
-        
-        // desiredSpeedLeft = ...
-        // desiredSpeedRight = ...
-        
+        desiredSpeedLeft = motionLeft.getVelocity();
+        desiredSpeedRight = motionRight.getVelocity();
         
         // calculate the actual speed of the motors in [rpm]
 
