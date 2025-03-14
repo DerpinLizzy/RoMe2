@@ -9,10 +9,15 @@
 using namespace std;
 
 const float Controller::PERIOD = 0.001f;                    // period of control task, given in [s]
+const float Controller::M_PI = 3.14159265f;                 // the mathematical constant PI
+const float Controller::WHEEL_DISTANCE = 0.190f;            // distance between wheels, given in [m]
+const float Controller::WHEEL_RADIUS = 0.0375f;             // radius of wheels, given in [m]
+const float Controller::MAXIMUM_VELOCITY = 500.0;           // maximum wheel velocity, given in [rpm]
+const float Controller::MAXIMUM_ACCELERATION = 200.0;       // maximum wheel acceleration, given in [rpm/s]
 const float Controller::COUNTS_PER_TURN = 1200.0f;          // encoder resolution (pololu motors: 1200.0f, maxon motors: 86016.0f)
 const float Controller::LOWPASS_FILTER_FREQUENCY = 300.0f;  // given in [rad/s]
 const float Controller::KN = 40.0f;                         // speed constant in [rpm/V] (pololu motors: 40.0f, maxon motors: 45.0f)
-const float Controller::KP = 0.2f;                          // speed control parameter
+const float Controller::KP = 0.15f;                         // speed control parameter
 const float Controller::MAX_VOLTAGE = 12.0f;                // battery voltage in [V]
 const float Controller::MIN_DUTY_CYCLE = 0.02f;             // minimum duty-cycle
 const float Controller::MAX_DUTY_CYCLE = 0.98f;             // maximum duty-cycle
@@ -36,6 +41,26 @@ Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counte
 
     // initialise local variables
 
+    translationalVelocity = 0.0f;
+    rotationalVelocity = 0.0f;
+
+    actualTranslationalVelocity = 0.0f;
+    actualRotationalVelocity = 0.0f;
+
+    desiredSpeedLeft = 0.0f;
+    desiredSpeedRight = 0.0f;
+
+    actualSpeedLeft = 0.0f;
+    actualSpeedRight = 0.0f;
+
+    motionLeft.setProfileVelocity(MAXIMUM_VELOCITY);
+    motionLeft.setProfileAcceleration(MAXIMUM_ACCELERATION);
+    motionLeft.setProfileDeceleration(MAXIMUM_ACCELERATION);
+
+    motionRight.setProfileVelocity(MAXIMUM_VELOCITY);
+    motionRight.setProfileAcceleration(MAXIMUM_ACCELERATION);
+    motionRight.setProfileDeceleration(MAXIMUM_ACCELERATION);
+
     previousValueCounterLeft = counterLeft.read();
     previousValueCounterRight = counterRight.read();
 
@@ -45,12 +70,6 @@ Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counte
     speedRightFilter.setPeriod(PERIOD);
     speedRightFilter.setFrequency(LOWPASS_FILTER_FREQUENCY);
 
-    desiredSpeedLeft = 0.0f;
-    desiredSpeedRight = 0.0f;
-
-    actualSpeedLeft = 0.0f;
-    actualSpeedRight = 0.0f;
-    
     // start thread and timer interrupt
     
     thread.start(callback(this, &Controller::run));
@@ -66,21 +85,39 @@ Controller::~Controller() {
 }
 
 /**
- * Sets the desired speed of the left motor.
- * @param desiredSpeedLeft desired speed given in [rpm].
+ * Sets the desired translational velocity of the robot.
+ * @param velocity the desired translational velocity, given in [m/s].
  */
-void Controller::setDesiredSpeedLeft(float desiredSpeedLeft) {
-
-    this->desiredSpeedLeft = desiredSpeedLeft;
+void Controller::setTranslationalVelocity(float velocity) {
+    
+    this->translationalVelocity = velocity;
 }
 
 /**
- * Sets the desired speed of the right motor.
- * @param desiredSpeedRight desired speed given in [rpm].
+ * Sets the desired rotational velocity of the robot.
+ * @param velocity the desired rotational velocity, given in [rad/s].
  */
-void Controller::setDesiredSpeedRight(float desiredSpeedRight) {
+void Controller::setRotationalVelocity(float velocity) {
+    
+    this->rotationalVelocity = velocity;
+}
 
-    this->desiredSpeedRight = desiredSpeedRight;
+/**
+ * Gets the actual translational velocity of the robot.
+ * @return the actual translational velocity, given in [m/s].
+ */
+float Controller::getActualTranslationalVelocity() {
+    
+    return actualTranslationalVelocity;
+}
+
+/**
+ * Gets the actual rotational velocity of the robot.
+ * @return the actual rotational velocity, given in [rad/s].
+ */
+float Controller::getActualRotationalVelocity() {
+    
+    return actualRotationalVelocity;
 }
 
 /**
@@ -103,6 +140,19 @@ void Controller::run() {
         
         ThisThread::flags_wait_any(threadFlag);
         
+        // calculate the values 'desiredSpeedLeft' and 'desiredSpeedRight' using the kinematic model
+        
+        desiredSpeedLeft = (translationalVelocity-WHEEL_DISTANCE/2.0f*rotationalVelocity)/WHEEL_RADIUS*60.0f/2.0f/M_PI;
+        desiredSpeedRight = -(translationalVelocity+WHEEL_DISTANCE/2.0f*rotationalVelocity)/WHEEL_RADIUS*60.0f/2.0f/M_PI;
+        
+        // calculate planned speedLeft and speedRight values using the motion planner
+        
+        motionLeft.incrementToVelocity(desiredSpeedLeft, PERIOD);
+        motionRight.incrementToVelocity(desiredSpeedRight, PERIOD);
+        
+        desiredSpeedLeft = motionLeft.getVelocity();
+        desiredSpeedRight = motionRight.getVelocity();
+        
         // calculate the actual speed of the motors in [rpm]
 
         short valueCounterLeft = counterLeft.read();
@@ -118,9 +168,9 @@ void Controller::run() {
         actualSpeedRight = speedRightFilter.filter((float)countsInPastPeriodRight/COUNTS_PER_TURN/PERIOD*60.0f);
 
         // calculate desired motor voltages Uout
-        
-        float voltageLeft = KP * (desiredSpeedLeft - actualSpeedLeft) + desiredSpeedLeft / KN;
-        float voltageRight = KP  * (desiredSpeedRight - actualSpeedRight) + desiredSpeedRight / KN;
+
+        float voltageLeft = KP*(desiredSpeedLeft-actualSpeedLeft)+desiredSpeedLeft/KN;
+        float voltageRight = KP*(desiredSpeedRight-actualSpeedRight)+desiredSpeedRight/KN;
 
         // calculate, limit and set the duty-cycle
 
@@ -133,14 +183,10 @@ void Controller::run() {
         if (dutyCycleRight < MIN_DUTY_CYCLE) dutyCycleRight = MIN_DUTY_CYCLE;
         else if (dutyCycleRight > MAX_DUTY_CYCLE) dutyCycleRight = MAX_DUTY_CYCLE;
         pwmRight = dutyCycleRight;
+
+        // calculate the values 'actualTranslationalVelocity' and 'actualRotationalVelocity' using the kinematic model
+
+        actualTranslationalVelocity = (actualSpeedLeft-actualSpeedRight)*2.0f*M_PI/60.0f*WHEEL_RADIUS/2.0f;
+        actualRotationalVelocity = (-actualSpeedRight-actualSpeedLeft)*2.0f*M_PI/60.0f*WHEEL_RADIUS/WHEEL_DISTANCE;
     }
-}
-
-float   Controller::getActualSpeedLeft(){
-    return actualSpeedLeft;
-}
-
-
-float   Controller::getActualSpeedRight(){
-    return actualSpeedRight;
 }
