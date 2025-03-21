@@ -8,9 +8,12 @@
 #define STATE_MACHINE_H_
 
 #include <cstdlib>
+#include <deque>
 #include <mbed.h>
 #include "Controller.h"
 #include "IRSensor.h"
+#include "Task.h"
+#include "ThreadFlag.h"
 
 /**
  * This class implements a simple state machine for a mobile robot.
@@ -60,6 +63,7 @@ class StateMachine {
         int             state;
         int             buttonNow;
         int             buttonBefore;
+        deque<Task*>    taskList;
         ThreadFlag      threadFlag;
         Thread          thread;
         Ticker          ticker;

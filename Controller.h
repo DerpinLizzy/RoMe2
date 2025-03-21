@@ -28,6 +28,12 @@ class Controller {
         void    setRotationalVelocity(float velocity);
         float   getActualTranslationalVelocity();
         float   getActualRotationalVelocity();
+        void    setX(float x);
+        float   getX();
+        void    setY(float y);
+        float   getY();
+        void    setAlpha(float alpha);
+        float   getAlpha();
         
     private:
         
@@ -65,6 +71,9 @@ class Controller {
         short               previousValueCounterRight;
         LowpassFilter       speedLeftFilter;
         LowpassFilter       speedRightFilter;
+        float               x;
+        float               y;
+        float               alpha;
         ThreadFlag          threadFlag;
         Thread              thread;
         Ticker              ticker;

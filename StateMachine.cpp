@@ -5,14 +5,16 @@
  */
 
 #include <cmath>
+#include "TaskWait.h"
+#include "TaskMoveTo.h"
 #include "StateMachine.h"
 
 using namespace std;
 
-const float StateMachine::PERIOD = 0.001f;                   // period of task, given in [s]
-const float StateMachine::DISTANCE_THRESHOLD = 0.4f;        // minimum allowed distance to obstacle in [m]
-const float StateMachine::TRANSLATIONAL_VELOCITY = 1.5f;    // translational velocity in [m/s]
-const float StateMachine::ROTATIONAL_VELOCITY = 3.0f;       // rotational velocity in [rad/s]
+const float StateMachine::PERIOD = 0.01f;                   // period of task, given in [s]
+const float StateMachine::DISTANCE_THRESHOLD = 0.2f;        // minimum allowed distance to obstacle in [m]
+const float StateMachine::TRANSLATIONAL_VELOCITY = 0.3f;    // translational velocity in [m/s]
+const float StateMachine::ROTATIONAL_VELOCITY = 1.0f;       // rotational velocity in [rad/s]
 const float StateMachine::VELOCITY_THRESHOLD = 0.01;        // velocity threshold before switching off, in [m/s] and [rad/s]
 
 /**
@@ -24,6 +26,7 @@ StateMachine::StateMachine(Controller& controller, DigitalOut& enableMotorDriver
     state = ROBOT_OFF;
     buttonNow = button;
     buttonBefore = buttonNow;
+    taskList.clear();
     
     // start thread and timer interrupt
     
@@ -82,14 +85,21 @@ void StateMachine::run() {
         switch (state) {
             
             case ROBOT_OFF:
+                
                 buttonNow = button;
                 
                 if (buttonNow && !buttonBefore) {   // detect button rising edge
                     
                     enableMotorDriver = 1;
                     
-                    controller.setTranslationalVelocity(TRANSLATIONAL_VELOCITY);
-                    controller.setRotationalVelocity(0.0f);
+                    taskList.push_back(new TaskWait(controller, 0.5f));
+                    taskList.push_back(new TaskMoveTo(controller, 1.5f, 0.0f, 0.0f));
+                    taskList.push_back(new TaskWait(controller, 2.0f));
+                    taskList.push_back(new TaskMoveTo(controller, 1.5f, 0.5f, 3.14f));
+                    taskList.push_back(new TaskWait(controller, 2.0f));
+                    taskList.push_back(new TaskMoveTo(controller, 0.0f, 0.5f, 3.14f));
+                    taskList.push_back(new TaskWait(controller, 2.0f));
+                    taskList.push_back(new TaskMoveTo(controller, 0.0f, 0.0f, 0.0f));
                     
                     state = MOVE_FORWARD;
                 }
@@ -99,48 +109,68 @@ void StateMachine::run() {
                 break;
                 
             case MOVE_FORWARD:
-                buttonNow = button;
                 
-                if (buttonNow && !buttonBefore) {   // turn off button
-                                        
-                    controller.setTranslationalVelocity( 0.0f);
-                    controller.setRotationalVelocity( 0.0f);
-                    
+                buttonNow = button;
+
+                if (buttonNow && !buttonBefore) {   // detect button rising edge
+
+                    controller.setTranslationalVelocity(0.0f);
+                    controller.setRotationalVelocity(0.0f);
+
                     state = SLOWING_DOWN;
-                }
 
-                if(led2 || led3){
-                    controller.setTranslationalVelocity( 0.0f);
-                    controller.setRotationalVelocity(-ROTATIONAL_VELOCITY);
+                } else if ((irSensor3 < DISTANCE_THRESHOLD) || (irSensor4 < DISTANCE_THRESHOLD)) {
 
-                    state = TURN_RIGHT;
-                }
-
-                if(led4){
-                    controller.setTranslationalVelocity( 0.0f);
+                    controller.setTranslationalVelocity(0.0f);
                     controller.setRotationalVelocity(ROTATIONAL_VELOCITY);
 
                     state = TURN_LEFT;
+
+                } else if (irSensor2 < DISTANCE_THRESHOLD) {
+
+                    controller.setTranslationalVelocity(0.0f);
+                    controller.setRotationalVelocity(-ROTATIONAL_VELOCITY);
+
+                    state = TURN_RIGHT;
+
+                } else {
+                    
+                    if (taskList.size() > 0) {
+                        
+                        Task* task = taskList.front();
+                        int result = task->run(PERIOD);
+                        if (result == Task::DONE) {
+                            taskList.pop_front();
+                            delete task;
+                        }
+                        
+                    } else {
+                        
+                        controller.setTranslationalVelocity(0.0f);
+                        controller.setRotationalVelocity(0.0f);
+                        
+                        state = SLOWING_DOWN;
+                    }
                 }
-                
+
                 buttonBefore = buttonNow;
                 
                 break;
                 
             case TURN_LEFT:
-                buttonNow = button;
                 
-                if (buttonNow && !buttonBefore) {   // turn off button
-                                        
-                    controller.setTranslationalVelocity( 0.0f);
-                    controller.setRotationalVelocity( 0.0f);
-                    
-                    state = SLOWING_DOWN;
-                }
+                buttonNow = button;
 
-                if(!led2 && !led3 && !led4){
-                    controller.setRotationalVelocity( 0.0f);
+                if (buttonNow && !buttonBefore) {   // detect button rising edge
+
+                    controller.setRotationalVelocity(0.0f);
+
+                    state = SLOWING_DOWN;
+
+                } else if ((irSensor2 > DISTANCE_THRESHOLD) && (irSensor3 > DISTANCE_THRESHOLD) && (irSensor4 > DISTANCE_THRESHOLD)) {
+
                     controller.setTranslationalVelocity(TRANSLATIONAL_VELOCITY);
+                    controller.setRotationalVelocity(0.0f);
 
                     state = MOVE_FORWARD;
                 }
@@ -150,19 +180,19 @@ void StateMachine::run() {
                 break;
                 
             case TURN_RIGHT:
-                buttonNow = button;
                 
-                if (buttonNow && !buttonBefore) {   // turn off button
-                                        
-                    controller.setTranslationalVelocity( 0.0f);
-                    controller.setRotationalVelocity( 0.0f);
-                    
-                    state = SLOWING_DOWN;
-                }
+                buttonNow = button;
 
-                if(!led2 && !led3 && !led4){
-                    controller.setRotationalVelocity( 0.0f);
+                if (buttonNow && !buttonBefore) {   // detect button rising edge
+
+                    controller.setRotationalVelocity(0.0f);
+
+                    state = SLOWING_DOWN;
+
+                } else if ((irSensor2 > DISTANCE_THRESHOLD) && (irSensor3 > DISTANCE_THRESHOLD) && (irSensor4 > DISTANCE_THRESHOLD)) {
+
                     controller.setTranslationalVelocity(TRANSLATIONAL_VELOCITY);
+                    controller.setRotationalVelocity(0.0f);
 
                     state = MOVE_FORWARD;
                 }
@@ -172,15 +202,23 @@ void StateMachine::run() {
                 break;
                 
             case SLOWING_DOWN:
-                if(controller.getActualRotationalVelocity() == 0.000f && controller.getActualTranslationalVelocity() == 0.000f){
+                
+                if ((fabs(controller.getActualTranslationalVelocity()) < VELOCITY_THRESHOLD) && (fabs(controller.getActualRotationalVelocity()) < VELOCITY_THRESHOLD)) {
                     
                     enableMotorDriver = 0;
+                    
+                    while (taskList.size() > 0) {
+                        delete taskList.front();
+                        taskList.pop_front();
+                    }
+                    
                     state = ROBOT_OFF;
                 }
                 
                 break;
                 
             default:
+                
                 state = ROBOT_OFF;
         }
     }

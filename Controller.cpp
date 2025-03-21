@@ -13,10 +13,10 @@ const float Controller::M_PI = 3.14159265f;                 // the mathematical 
 const float Controller::WHEEL_DISTANCE = 0.190f;            // distance between wheels, given in [m]
 const float Controller::WHEEL_RADIUS = 0.0375f;             // radius of wheels, given in [m]
 const float Controller::MAXIMUM_VELOCITY = 500.0;           // maximum wheel velocity, given in [rpm]
-const float Controller::MAXIMUM_ACCELERATION = 1000.0;       // maximum wheel acceleration, given in [rpm/s]
-const float Controller::COUNTS_PER_TURN = 86016.0f;          // encoder resolution (pololu motors: 1200.0f, maxon motors: 86016.0f)
+const float Controller::MAXIMUM_ACCELERATION = 200.0;       // maximum wheel acceleration, given in [rpm/s]
+const float Controller::COUNTS_PER_TURN = 1200.0f;          // encoder resolution (pololu motors: 1200.0f, maxon motors: 86016.0f)
 const float Controller::LOWPASS_FILTER_FREQUENCY = 300.0f;  // given in [rad/s]
-const float Controller::KN = 45.0f;                         // speed constant in [rpm/V] (pololu motors: 40.0f, maxon motors: 45.0f)
+const float Controller::KN = 40.0f;                         // speed constant in [rpm/V] (pololu motors: 40.0f, maxon motors: 45.0f)
 const float Controller::KP = 0.15f;                         // speed control parameter
 const float Controller::MAX_VOLTAGE = 12.0f;                // battery voltage in [V]
 const float Controller::MIN_DUTY_CYCLE = 0.02f;             // minimum duty-cycle
@@ -70,8 +70,12 @@ Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counte
     speedRightFilter.setPeriod(PERIOD);
     speedRightFilter.setFrequency(LOWPASS_FILTER_FREQUENCY);
 
+    x = 0.0f;
+    y = 0.0f;
+    alpha = 0.0f;
+
     // start thread and timer interrupt
-    
+
     thread.start(callback(this, &Controller::run));
     ticker.attach(callback(this, &Controller::sendThreadFlag), PERIOD);
 }
@@ -119,6 +123,61 @@ float Controller::getActualRotationalVelocity() {
     
     return actualRotationalVelocity;
 }
+
+/**
+ * Sets the actual x coordinate of the robots position.
+ * @param x the x coordinate of the position, given in [m].
+ */
+void Controller::setX(float x) {
+    
+    this->x = x;
+}
+
+/**
+ * Gets the actual x coordinate of the robots position.
+ * @return the x coordinate of the position, given in [m].
+ */
+float Controller::getX() {
+    
+    return x;
+}
+
+/**
+ * Sets the actual y coordinate of the robots position.
+ * @param y the y coordinate of the position, given in [m].
+ */
+void Controller::setY(float y) {
+    
+    this->y = y;
+}
+
+/**
+ * Gets the actual y coordinate of the robots position.
+ * @return the y coordinate of the position, given in [m].
+ */
+float Controller::getY() {
+    
+    return y;
+}
+
+/**
+ * Sets the actual orientation of the robot.
+ * @param alpha the orientation, given in [rad].
+ */
+void Controller::setAlpha(float alpha) {
+    
+    this->alpha = alpha;
+}
+
+/**
+ * Gets the actual orientation of the robot.
+ * @return the orientation, given in [rad].
+ */
+float Controller::getAlpha() {
+    
+    return alpha;
+}
+
 
 /**
  * This method is called by the ticker timer interrupt service routine.
@@ -188,5 +247,20 @@ void Controller::run() {
 
         actualTranslationalVelocity = (actualSpeedLeft-actualSpeedRight)*2.0f*M_PI/60.0f*WHEEL_RADIUS/2.0f;
         actualRotationalVelocity = (-actualSpeedRight-actualSpeedLeft)*2.0f*M_PI/60.0f*WHEEL_RADIUS/WHEEL_DISTANCE;
+        
+        // calculate the actual robot pose
+        
+        float deltaTranslation = actualTranslationalVelocity*PERIOD;
+        float deltaOrientation = actualRotationalVelocity*PERIOD;
+        
+        x += cos(alpha+deltaOrientation)*deltaTranslation;
+        y += sin(alpha+deltaOrientation)*deltaTranslation;
+        
+        float alpha = this->alpha+deltaOrientation;
+        
+        while (alpha > M_PI) alpha -= 2.0f*M_PI;
+        while (alpha < -M_PI) alpha += 2.0f*M_PI;
+        
+        this->alpha = alpha;
     }
 }
