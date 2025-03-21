@@ -57,7 +57,8 @@ int main() {
     // create robot controller objects
     
     Controller controller(pwmLeft, pwmRight, counterLeft, counterRight);
-    StateMachine stateMachine(controller, enableMotorDriver, led0, led1, led2, led3, led4, led5, button, irSensor0, irSensor1, irSensor2, irSensor3, irSensor4, irSensor5);
+    StateMachine stateMachine(controller, enableMotorDriver, led0, led1, led2, led3, led4, led5, button,
+                                irSensor0, irSensor1, irSensor2, irSensor3, irSensor4, irSensor5);
     
     while (true) {
         
