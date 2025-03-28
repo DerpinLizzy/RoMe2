@@ -73,6 +73,7 @@ class IMU {
         
         static const unsigned int   STACK_SIZE = 2048;          // stack size of thread, given in [bytes]
         static const float          PERIOD;                     // period of task, given in [s]
+        static const float          LOWPASS_FILTER_FREQUENCY;
         static const float          M_PI;                       // the mathematical constant PI
         
         SPI&            spi;
@@ -82,8 +83,11 @@ class IMU {
         ThreadFlag      threadFlag;
         Thread          thread;
         Ticker          ticker;
+        LowpassFilter   x_lpf;
+        LowpassFilter   y_lpf;
         
-        float           heading;
+        float           heading, x_val, x_min, x_max, y_val, y_min, y_max;
+        static float      incr;
         
         void    writeRegister(DigitalOut& cs, char address, char value);
         char    readRegister(DigitalOut& cs, char address);

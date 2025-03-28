@@ -74,8 +74,9 @@ int main() {
         
         printf("Acceleration: %.3f %.3f %.3f [m/s2]\r\n", imu.readAccelerationX(), imu.readAccelerationY(), imu.readAccelerationZ());
         printf("Gyro: %.3f %.3f %.3f [rad/s]\r\n", imu.readGyroX(), imu.readGyroY(), imu.readGyroZ());
-        printf("Magnetometer: %.3f %.3f %.3f [gauss]\r\n", imu.readMagnetometerX(), imu.readMagnetometerY(), imu.readMagnetometerZ());
+        printf("Magnetometer(X;Y;Z): %.3f %.3f %.3f [gauss]\r\n", imu.readMagnetometerX(), imu.readMagnetometerY(), imu.readMagnetometerZ());
         printf("Heading: %.1f [degrees]\r\n", 57.2957795f*imu.readHeading());
+        // printf("Heading: %.1f [degrees]\r\n", imu.readHeading());
         
         ThisThread::sleep_for(500ms);
     }

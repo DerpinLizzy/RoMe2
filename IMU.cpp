@@ -9,6 +9,7 @@
 using namespace std;
 
 const float IMU::PERIOD = 0.002f;               // period of task, given in [s]
+const float IMU::LOWPASS_FILTER_FREQUENCY = 3.14f;
 const float IMU::M_PI = 3.14159265f;            // the mathematical constant PI
 
 /**
@@ -20,9 +21,10 @@ const float IMU::M_PI = 3.14159265f;            // the mathematical constant PI
 IMU::IMU(SPI& spi, DigitalOut& csAG, DigitalOut& csM) : spi(spi), csAG(csAG), csM(csM), thread(osPriorityHigh, STACK_SIZE) {
     
     // initialize SPI interface
-    
+    float hertz = 10e6;
+
     spi.format(8, 3);
-    spi.frequency(1000000);
+    spi.frequency(hertz);
     
     // reset chip select lines to logical high
     
@@ -49,10 +51,27 @@ IMU::IMU(SPI& spi, DigitalOut& csAG, DigitalOut& csM) : spi(spi), csAG(csAG), cs
     writeRegister(csM, CTRL_REG3_M, 0x80);      // disable I2C interface, low power mode, SPI write only, continuous conversion mode
     writeRegister(csM, CTRL_REG4_M, 0x00);      // low power mode for z axis, LSB at lower address
     writeRegister(csM, CTRL_REG5_M, 0x00);      // fast read disabled
-    
+
+    // init filters
+    x_lpf.setPeriod(PERIOD);
+    x_lpf.setFrequency(LOWPASS_FILTER_FREQUENCY);
+    x_lpf.reset();
+
+    y_lpf.setPeriod(PERIOD);
+    y_lpf.setFrequency(LOWPASS_FILTER_FREQUENCY);
+    y_lpf.reset();
+
     // initialize local variables
+
+    x_val = 0.0f;
+    x_min = -1000.0f;
+    x_max = 1000.0f;
+    y_val = 0.0f;
+    y_min = -1000.0f;
+    y_max = 1000.0f;
     
     heading = 0.0f;
+    incr = 0;
     
     // start thread and timer interrupt
     
@@ -215,10 +234,17 @@ float IMU::readGyroZ() {
  * @return the magnetic field in x-direction, given in [Gauss].
  */
 float IMU::readMagnetometerX() {
+
+    mutex.lock();
+
+    char low = readRegister(csM, OUT_X_L_M);
+    char high = readRegister(csM, OUT_X_H_M);
     
-    // bitte implementieren!
+    short value = (short)(((unsigned short)high << 8) | (unsigned short)low);
     
-    return 0.0f;
+    mutex.unlock();
+
+    return (float)value/32768.0f*4.0f;
 }
 
 /**
@@ -227,9 +253,16 @@ float IMU::readMagnetometerX() {
  */
 float IMU::readMagnetometerY() {
     
-    // bitte implementieren!
+    mutex.lock();
+
+    char low = readRegister(csM, OUT_Y_L_M);
+    char high = readRegister(csM, OUT_Y_H_M);
     
-    return 0.0f;
+    short value = (short)(((unsigned short)high << 8) | (unsigned short)low);
+    
+    mutex.unlock();
+    
+    return (float)value/32768.0f*4.0f;
 }
 
 /**
@@ -238,9 +271,16 @@ float IMU::readMagnetometerY() {
  */
 float IMU::readMagnetometerZ() {
     
-    // bitte implementieren!
+    mutex.lock();
+
+    char low = readRegister(csM, OUT_Z_L_M);
+    char high = readRegister(csM, OUT_Z_H_M);
     
-    return 0.0f;
+    short value = (short)(((unsigned short)high << 8) | (unsigned short)low);
+    
+    mutex.unlock();
+    
+    return (float)value/32768.0f*4.0f;
 }
 
 /**
@@ -269,15 +309,32 @@ void IMU::run() {
     while (true) {
         
         // wait for the periodic thread flag
-        
         ThisThread::flags_wait_any(threadFlag);
         
         // filter and process sensor data...
+        x_val = x_lpf.filter(readMagnetometerX());
+        y_val = y_lpf.filter(readMagnetometerY());
+        if(incr == 1){
+            incr = 0;
+            printf("\r\n\n============================="
+                    "\r\nDEBUG"
+                    "\r\n============================="
+                    "\r\nx_val readout rohwert: %f"
+                    "\r\ny_val readout rohwert: %f"
+                    "\r\nx_val gefiltert: %f"
+                    "\r\ny_val gefiltert: %f\r\n", readMagnetometerX(), readMagnetometerY(), x_val, y_val);
+        }
+        incr += PERIOD;
+
+        if(x_max < x_val) x_max = x_val;
+        if(x_min > x_val) x_min = x_val;
+        if(y_max < y_val) y_max = y_val;
+        if(y_min > y_val) y_min = y_val;
+
+        if(y_min < y_max) x_val = 2 * (x_val - x_min)/(x_max - x_min) - 1;
+        if(y_min < y_max) y_val = 2 * (y_val - y_min)/(y_max - y_min) - 1;
         
-        
-        
-        // calculate heading...
-        
-        heading = 0.0f;
+        // calculate heading
+        heading = (atan2(-y_val,x_val) >= 0) ? atan2(-y_val, x_val) : atan2(-y_val, x_val) + 2 * M_PI;
     }
 }
