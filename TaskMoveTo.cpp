@@ -12,9 +12,9 @@ using namespace std;
 const float TaskMoveTo::DEFAULT_VELOCITY = 0.3f;    // default velocity value, given in [m/s]
 const float TaskMoveTo::DEFAULT_ZONE = 0.05f;       // default zone value, given in [m]
 const float TaskMoveTo::M_PI = 3.14159265f;         // the mathematical constant PI
-constexpr float TaskMoveTo::K1 = 2.0f;                  // position controller gain parameter
-constexpr float TaskMoveTo::K2 = 2.0f;                  // position controller gain parameter
-constexpr float TaskMoveTo::K3 = 1.0f;                  // position controller gain parameter
+const float TaskMoveTo::K1 = 2.0f;                  // position controller gain parameter
+const float TaskMoveTo::K2 = 2.0f;                  // position controller gain parameter
+const float TaskMoveTo::K3 = 1.0f;                  // position controller gain parameter
 
 /**
  * Creates a task object that moves the robot to a given pose.
@@ -78,30 +78,45 @@ TaskMoveTo::~TaskMoveTo() {}
  * @return the status of this task, i.e. RUNNING or DONE.
  */
 int TaskMoveTo::run(float period) {
+    
+    float x = controller.getX();
+    float y = controller.getY();
+    float alpha = controller.getAlpha();
+    
+    float rho = sqrt((this->x-x)*(this->x-x)+(this->y-y)*(this->y-y));
+    
+    if (rho > zone) {
+        
+        float gamma = atan2(this->y-y, this->x-x)-alpha;
+        
+        while (gamma < -M_PI) gamma += 2.0f*M_PI;
+        while (gamma > M_PI) gamma -= 2.0f*M_PI;
+        
+        float delta = gamma+alpha-this->alpha;
+        
+        while (delta < -M_PI) delta += 2.0f*M_PI;
+        while (delta > M_PI) delta -= 2.0f*M_PI;
+        
+        float translationalVelocity = K1*rho*cos(gamma);
+        translationalVelocity = (translationalVelocity > velocity) ? velocity : (translationalVelocity < -velocity) ? -velocity : translationalVelocity;
+        
+        float rotationalVelocity = 0.0f;
 
-    roh = sqrt(pow(x - controller.getX(),2) + pow(y - controller.getY(),2));    
-    if(roh < 1.0e-1f){
+        if (fabs(gamma) > 1.0e-6f) {
+            
+            rotationalVelocity = K2*gamma+K1*sin(gamma)*cos(gamma)*(gamma+K3*delta)/gamma;
+        }
+
+        controller.setTranslationalVelocity(translationalVelocity);
+        controller.setRotationalVelocity(rotationalVelocity);
+
+        return RUNNING;
+
+    } else {
+
         controller.setTranslationalVelocity(0.0f);
         controller.setRotationalVelocity(0.0f);
+
         return DONE;
     }
-
-    gamma = atan2(y - controller.getY(), x - controller.getX()) - controller.getAlpha();
-    while(gamma < -M_PI) gamma += 2 * M_PI;
-    while(gamma > M_PI) gamma -= 2 * M_PI;
-
-    sigma = gamma + controller.getAlpha() - alpha;
-    while(sigma < -M_PI) sigma += 2 * M_PI;
-    while(sigma > M_PI) sigma -= 2 * M_PI;
-
-    transVel = K1 * roh * cos(gamma);
-    controller.setTranslationalVelocity(transVel);
-    if(fabs(gamma) > 1.0e-6f){
-        rotVel = K2 * gamma + K1 * sin(gamma) * cos(gamma) * ((gamma + K3 * sigma)/gamma);
-        controller.setRotationalVelocity(rotVel);
-    }
-    else{
-        controller.setRotationalVelocity(0.0f);
-    }
-    return RUNNING;
 }
