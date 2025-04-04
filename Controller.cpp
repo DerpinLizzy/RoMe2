@@ -10,7 +10,7 @@ using namespace std;
 
 const float Controller::PERIOD = 0.001f;                    // period of control task, given in [s]
 const float Controller::M_PI = 3.14159265f;                 // the mathematical constant PI
-const float Controller::WHEEL_DISTANCE = 0.190f;            // distance between wheels, given in [m]
+const float Controller::WHEEL_DISTANCE = 0.190f * 0.978f;            // distance between wheels, given in [m]
 const float Controller::WHEEL_RADIUS = 0.0375f;             // radius of wheels, given in [m]
 const float Controller::MAXIMUM_VELOCITY = 500.0;           // maximum wheel velocity, given in [rpm]
 const float Controller::MAXIMUM_ACCELERATION = 200.0;       // maximum wheel acceleration, given in [rpm/s]

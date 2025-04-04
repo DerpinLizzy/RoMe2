@@ -84,15 +84,25 @@ int main() {
     httpServer->add("imu", new HTTPScriptIMU(imu));
     httpServer->add("orientation", new HTTPScriptOrientation(controller, imu));
 
+    float tError = 0.0f;
+    int runs = 0;
+
     while (true) {
         
         led = !led;
+        tError = 57.2957795f*imu.readHeading() - 57.2957795f*controller.getAlpha();
         
-        printf("Acceleration: %.3f %.3f %.3f [m/s2]\r\n", imu.readAccelerationX(), imu.readAccelerationY(), imu.readAccelerationZ());
-        printf("Gyro: %.3f %.3f %.3f [rad/s]\r\n", imu.readGyroX(), imu.readGyroY(), imu.readGyroZ());
-        printf("Magnetometer: %.3f %.3f %.3f [gauss]\r\n", imu.readMagnetometerX(), imu.readMagnetometerY(), imu.readMagnetometerZ());
-        printf("Heading: %.1f [degrees]\r\n", 57.2957795f*imu.readHeading());
-        
+        if(runs >= 4 ){
+            runs = 0;
+
+            printf("Acceleration: %.3f %.3f %.3f [m/s2]\r\n", imu.readAccelerationX(), imu.readAccelerationY(), imu.readAccelerationZ());
+            printf("Gyro: %.3f %.3f %.3f [rad/s]\r\n", imu.readGyroX(), imu.readGyroY(), imu.readGyroZ());
+            printf("Magnetometer: %.3f %.3f %.3f [gauss]\r\n", imu.readMagnetometerX(), imu.readMagnetometerY(), imu.readMagnetometerZ());
+            printf("Heading: %.1f [degrees]\r\n", 57.2957795f*imu.readHeading());
+            printf("error between mag and odo: %.2f [degrees]\r\n", tError);
+        }
+
+        runs += 1;
         ThisThread::sleep_for(500ms);
     }
 }

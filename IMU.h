@@ -93,7 +93,7 @@ class IMU {
         LowpassFilter   x_lpf;
         LowpassFilter   y_lpf;
         float           heading, x_val, x_min, x_max, y_val, y_min, y_max;
-        static float    incr;
+        float           incr;
         
         void    writeRegister(DigitalOut& cs, char address, char value);
         char    readRegister(DigitalOut& cs, char address);

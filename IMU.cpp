@@ -301,67 +301,67 @@ void IMU::sendThreadFlag() {
 /**
  * This <code>run()</code> method contains an infinite loop with the run logic.
  */
-// void IMU::run() {
-    
-//     while (true) {
-        
-//         // wait for the periodic thread flag
-        
-//         ThisThread::flags_wait_any(threadFlag);
-        
-//         // read actual measurements from magnetometer registers
-        
-//         float magnetometerX = magnetometerXFilter.filter(readMagnetometerX());
-//         float magnetometerY = magnetometerYFilter.filter(readMagnetometerY());
-        
-//         // adjust the minimum and maximum limits, if needed
-        
-//         if (magnetometerXMin > magnetometerX) magnetometerXMin = magnetometerX;
-//         if (magnetometerXMax < magnetometerX) magnetometerXMax = magnetometerX;
-//         if (magnetometerYMin > magnetometerY) magnetometerYMin = magnetometerY;
-//         if (magnetometerYMax < magnetometerY) magnetometerYMax = magnetometerY;
-        
-//         // calculate adjusted magnetometer values (gain and offset compensation)
-        
-//         if (magnetometerXMin < magnetometerXMax) magnetometerX = (magnetometerX-magnetometerXMin)/(magnetometerXMax-magnetometerXMin)-0.5f;
-//         if (magnetometerYMin < magnetometerYMax) magnetometerY = (magnetometerY-magnetometerYMin)/(magnetometerYMax-magnetometerYMin)-0.5f;
-        
-//         // calculate heading with atan2 from x and y magnetometer measurements
-        
-//         heading = atan2(-magnetometerY, magnetometerX);
-//     }
-// }
 void IMU::run() {
     
     while (true) {
         
         // wait for the periodic thread flag
+        
         ThisThread::flags_wait_any(threadFlag);
         
-        // filter and process sensor data...
-        x_val = x_lpf.filter(readMagnetometerX());
-        y_val = y_lpf.filter(readMagnetometerY());
-        if(incr == 1){
-            incr = 0;
-            printf("\r\n\n============================="
-                    "\r\nDEBUG"
-                    "\r\n============================="
-                    "\r\nx_val readout rohwert: %f"
-                    "\r\ny_val readout rohwert: %f"
-                    "\r\nx_val gefiltert: %f"
-                    "\r\ny_val gefiltert: %f\r\n", readMagnetometerX(), readMagnetometerY(), x_val, y_val);
-        }
-        incr += PERIOD;
-
-        if(x_max < x_val) x_max = x_val;
-        if(x_min > x_val) x_min = x_val;
-        if(y_max < y_val) y_max = y_val;
-        if(y_min > y_val) y_min = y_val;
-
-        if(y_min < y_max) x_val = 2 * (x_val - x_min)/(x_max - x_min) - 1;
-        if(y_min < y_max) y_val = 2 * (y_val - y_min)/(y_max - y_min) - 1;
+        // read actual measurements from magnetometer registers
         
-        // calculate heading
-        heading = (atan2(-y_val,x_val) >= 0) ? atan2(-y_val, x_val) : atan2(-y_val, x_val) + 2 * M_PI;
+        float magnetometerX = magnetometerXFilter.filter(readMagnetometerX());
+        float magnetometerY = magnetometerYFilter.filter(readMagnetometerY());
+        
+        // adjust the minimum and maximum limits, if needed
+        
+        if (magnetometerXMin > magnetometerX) magnetometerXMin = magnetometerX;
+        if (magnetometerXMax < magnetometerX) magnetometerXMax = magnetometerX;
+        if (magnetometerYMin > magnetometerY) magnetometerYMin = magnetometerY;
+        if (magnetometerYMax < magnetometerY) magnetometerYMax = magnetometerY;
+        
+        // calculate adjusted magnetometer values (gain and offset compensation)
+        
+        if (magnetometerXMin < magnetometerXMax) magnetometerX = (magnetometerX-magnetometerXMin)/(magnetometerXMax-magnetometerXMin)-0.5f;
+        if (magnetometerYMin < magnetometerYMax) magnetometerY = (magnetometerY-magnetometerYMin)/(magnetometerYMax-magnetometerYMin)-0.5f;
+        
+        // calculate heading with atan2 from x and y magnetometer measurements
+        
+        heading = atan2(-magnetometerY, magnetometerX);
     }
 }
+// void IMU::run() {
+    
+//     while (true) {
+        
+//         // wait for the periodic thread flag
+//         ThisThread::flags_wait_any(threadFlag);
+        
+//         // filter and process sensor data...
+//         x_val = x_lpf.filter(readMagnetometerX());
+//         y_val = y_lpf.filter(readMagnetometerY());
+//         if(incr == 1){
+//             incr = 0;
+//             printf("\r\n\n============================="
+//                     "\r\nDEBUG"
+//                     "\r\n============================="
+//                     "\r\nx_val readout rohwert: %f"
+//                     "\r\ny_val readout rohwert: %f"
+//                     "\r\nx_val gefiltert: %f"
+//                     "\r\ny_val gefiltert: %f\r\n", readMagnetometerX(), readMagnetometerY(), x_val, y_val);
+//         }
+//         incr += PERIOD;
+
+//         if(x_max < x_val) x_max = x_val;
+//         if(x_min > x_val) x_min = x_val;
+//         if(y_max < y_val) y_max = y_val;
+//         if(y_min > y_val) y_min = y_val;
+
+//         if(y_min < y_max) x_val = 2 * (x_val - x_min)/(x_max - x_min) - 1;
+//         if(y_min < y_max) y_val = 2 * (y_val - y_min)/(y_max - y_min) - 1;
+        
+//         // calculate heading
+//         heading = (atan2(-y_val,x_val) >= 0) ? atan2(-y_val, x_val) : atan2(-y_val, x_val) + 2 * M_PI;
+//     }
+// }
