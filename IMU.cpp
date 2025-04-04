@@ -8,9 +8,9 @@
 
 using namespace std;
 
-const float IMU::PERIOD = 0.002f;               // period of task, given in [s]
-const float IMU::LOWPASS_FILTER_FREQUENCY = 3.14f;
-const float IMU::M_PI = 3.14159265f;            // the mathematical constant PI
+const float IMU::PERIOD = 0.002f;                   // period of task, given in [s]
+const float IMU::M_PI = 3.14159265f;                // the mathematical constant PI
+const float IMU::LOWPASS_FILTER_FREQUENCY = 3.14f;  // frequency of the lowpass filter, given in [rad/s]
 
 /**
  * Creates an IMU object.
@@ -21,10 +21,9 @@ const float IMU::M_PI = 3.14159265f;            // the mathematical constant PI
 IMU::IMU(SPI& spi, DigitalOut& csAG, DigitalOut& csM) : spi(spi), csAG(csAG), csM(csM), thread(osPriorityHigh, STACK_SIZE) {
     
     // initialize SPI interface
-    float hertz = 10e6;
-
+    
     spi.format(8, 3);
-    spi.frequency(hertz);
+    spi.frequency(1000000);
     
     // reset chip select lines to logical high
     
@@ -51,27 +50,25 @@ IMU::IMU(SPI& spi, DigitalOut& csAG, DigitalOut& csM) : spi(spi), csAG(csAG), cs
     writeRegister(csM, CTRL_REG3_M, 0x80);      // disable I2C interface, low power mode, SPI write only, continuous conversion mode
     writeRegister(csM, CTRL_REG4_M, 0x00);      // low power mode for z axis, LSB at lower address
     writeRegister(csM, CTRL_REG5_M, 0x00);      // fast read disabled
-
-    // init filters
-    x_lpf.setPeriod(PERIOD);
-    x_lpf.setFrequency(LOWPASS_FILTER_FREQUENCY);
-    x_lpf.reset();
-
-    y_lpf.setPeriod(PERIOD);
-    y_lpf.setFrequency(LOWPASS_FILTER_FREQUENCY);
-    y_lpf.reset();
-
+    
     // initialize local variables
-
-    x_val = 0.0f;
-    x_min = -1000.0f;
-    x_max = 1000.0f;
-    y_val = 0.0f;
-    y_min = -1000.0f;
-    y_max = 1000.0f;
+    
+    magnetometerXMin = 1000.0f;
+    magnetometerXMax = -1000.0f;
+    magnetometerYMin = 1000.0f;
+    magnetometerYMax = -1000.0f;
+    
+    magnetometerXFilter.setPeriod(PERIOD);
+    magnetometerXFilter.setFrequency(LOWPASS_FILTER_FREQUENCY);
+    magnetometerXFilter.reset(readMagnetometerX());
+    magnetometerXFilter.filter(readMagnetometerX());
+    
+    magnetometerYFilter.setPeriod(PERIOD);
+    magnetometerYFilter.setFrequency(LOWPASS_FILTER_FREQUENCY);
+    magnetometerYFilter.reset(readMagnetometerY());
+    magnetometerYFilter.filter(readMagnetometerY());
     
     heading = 0.0f;
-    incr = 0;
     
     // start thread and timer interrupt
     
@@ -234,16 +231,16 @@ float IMU::readGyroZ() {
  * @return the magnetic field in x-direction, given in [Gauss].
  */
 float IMU::readMagnetometerX() {
-
+    
     mutex.lock();
-
+    
     char low = readRegister(csM, OUT_X_L_M);
     char high = readRegister(csM, OUT_X_H_M);
     
     short value = (short)(((unsigned short)high << 8) | (unsigned short)low);
     
     mutex.unlock();
-
+    
     return (float)value/32768.0f*4.0f;
 }
 
@@ -254,7 +251,7 @@ float IMU::readMagnetometerX() {
 float IMU::readMagnetometerY() {
     
     mutex.lock();
-
+    
     char low = readRegister(csM, OUT_Y_L_M);
     char high = readRegister(csM, OUT_Y_H_M);
     
@@ -272,7 +269,7 @@ float IMU::readMagnetometerY() {
 float IMU::readMagnetometerZ() {
     
     mutex.lock();
-
+    
     char low = readRegister(csM, OUT_Z_L_M);
     char high = readRegister(csM, OUT_Z_H_M);
     
@@ -304,6 +301,36 @@ void IMU::sendThreadFlag() {
 /**
  * This <code>run()</code> method contains an infinite loop with the run logic.
  */
+// void IMU::run() {
+    
+//     while (true) {
+        
+//         // wait for the periodic thread flag
+        
+//         ThisThread::flags_wait_any(threadFlag);
+        
+//         // read actual measurements from magnetometer registers
+        
+//         float magnetometerX = magnetometerXFilter.filter(readMagnetometerX());
+//         float magnetometerY = magnetometerYFilter.filter(readMagnetometerY());
+        
+//         // adjust the minimum and maximum limits, if needed
+        
+//         if (magnetometerXMin > magnetometerX) magnetometerXMin = magnetometerX;
+//         if (magnetometerXMax < magnetometerX) magnetometerXMax = magnetometerX;
+//         if (magnetometerYMin > magnetometerY) magnetometerYMin = magnetometerY;
+//         if (magnetometerYMax < magnetometerY) magnetometerYMax = magnetometerY;
+        
+//         // calculate adjusted magnetometer values (gain and offset compensation)
+        
+//         if (magnetometerXMin < magnetometerXMax) magnetometerX = (magnetometerX-magnetometerXMin)/(magnetometerXMax-magnetometerXMin)-0.5f;
+//         if (magnetometerYMin < magnetometerYMax) magnetometerY = (magnetometerY-magnetometerYMin)/(magnetometerYMax-magnetometerYMin)-0.5f;
+        
+//         // calculate heading with atan2 from x and y magnetometer measurements
+        
+//         heading = atan2(-magnetometerY, magnetometerX);
+//     }
+// }
 void IMU::run() {
     
     while (true) {
