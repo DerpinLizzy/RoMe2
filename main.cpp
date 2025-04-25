@@ -99,7 +99,6 @@ int main() {
             printf("Gyro: %.3f %.3f %.3f [rad/s]\r\n", imu.readGyroX(), imu.readGyroY(), imu.readGyroZ());
             printf("Magnetometer: %.3f %.3f %.3f [gauss]\r\n", imu.readMagnetometerX(), imu.readMagnetometerY(), imu.readMagnetometerZ());
             printf("Heading: %.1f [degrees]\r\n", 57.2957795f*imu.readHeading());
-            printf("error between mag and odo: %.2f [degrees]\r\n", tError);
         }
 
         runs += 1;
