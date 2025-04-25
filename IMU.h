@@ -90,10 +90,7 @@ class IMU {
         float           magnetometerYMax;
         LowpassFilter   magnetometerXFilter;
         LowpassFilter   magnetometerYFilter;
-        LowpassFilter   x_lpf;
-        LowpassFilter   y_lpf;
-        float           heading, x_val, x_min, x_max, y_val, y_min, y_max;
-        float           incr;
+        float           heading;
         
         void    writeRegister(DigitalOut& cs, char address, char value);
         char    readRegister(DigitalOut& cs, char address);

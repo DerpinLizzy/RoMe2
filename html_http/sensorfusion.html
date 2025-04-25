@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Sensor Fusion</title>
+  <style type="text/css">
+    html {background-color: #223344;}
+    h2 {font-family:Helvetica,Arial,sans-serif; font-size: 24; color:#FFFFFF;}
+    p, td {font-family:Helvetica,Arial,sans-serif; font-size: 16; color:#EEEEEE;}
+  </style>
+</head>
+<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">
+  <script type="text/javascript">
+  var tiltAngleA = [];
+  var tiltAngleG = [];
+  var tiltAngleK = [];
+  var tiltAngleC = [];
+  var xmlhttp = null;
+  var task = window.setInterval("update()", 100);
+  function update() {
+    if (window.XMLHttpRequest) {
+      xmlhttp = new XMLHttpRequest();
+    } else if (window.ActiveXObject) {
+      try {
+        xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+      } catch (exception) {
+        try {
+          xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+        } catch (exception) {}
+      }
+    }
+    xmlhttp.onreadystatechange = refresh;
+    xmlhttp.open("GET", "/cgi-bin/sensorfusion");
+    xmlhttp.send(null);
+  }
+  function refresh() {
+    if (xmlhttp.readyState == 4) {
+      var xml = xmlhttp.responseXML;
+      var floatValues = xml.getElementsByTagName("float");
+      tiltAngleA.push(floatValues[0].childNodes[0].nodeValue/Math.PI*180.0); if (tiltAngleA.length > 400) tiltAngleA.shift();
+      tiltAngleG.push(floatValues[1].childNodes[0].nodeValue/Math.PI*180.0); if (tiltAngleG.length > 400) tiltAngleG.shift();
+      tiltAngleK.push(floatValues[2].childNodes[0].nodeValue/Math.PI*180.0); if (tiltAngleK.length > 400) tiltAngleK.shift();
+      tiltAngleC.push(floatValues[3].childNodes[0].nodeValue/Math.PI*180.0); if (tiltAngleC.length > 400) tiltAngleC.shift();
+      drawPlot("sensorfusion", tiltAngleA, tiltAngleG, tiltAngleK, tiltAngleC, "°");
+    }
+  }
+  function drawPlot(id, value0, value1, value2, value3, valueUnit) {
+    var canvas = document.getElementById(id);
+    var width = window.innerWidth-50;
+    var height = window.innerHeight-50;
+    canvas.width = 2*width;
+    canvas.height = 2*height;
+    canvas.style.width = width+"px";
+    canvas.style.height = height+"px";
+    var ctx = canvas.getContext("2d");
+    ctx.scale(2,2);
+    ctx.fillStyle = "#334455";
+    ctx.fillRect(0.5, 0.5, width-1, height-1);
+    var valueMin = value0[0];
+    var valueMax = value0[0];
+    for (i = 0; i < Math.min(Math.min(value0.length, value1.length), value2.length); i++) {
+      valueMin = Math.min(valueMin, Math.min(value0[i], Math.min(value1[i], Math.min(value2[i], value3[i]))));
+      valueMax = Math.max(valueMax, Math.max(value0[i], Math.max(value1[i], Math.max(value2[i], value3[i]))));
+    }
+    if (valueMax-valueMin < 2.0/Math.pow(10.0, 3)) {
+      var valueMean = (valueMin+valueMax)/2.0;
+      valueMin = valueMean-1.0/Math.pow(10.0, 3);
+      valueMax = valueMean+1.0/Math.pow(10.0, 3);
+    }
+    var valueStep = (valueMax-valueMin)/(height/100); if (valueStep < 1.0/Math.pow(10.0, 3)) valueStep = 1.0/Math.pow(10.0, 3);
+    var valueGain = Math.pow(10.0, Math.floor(Math.log(valueStep)/Math.log(10.0)));
+    valueStep = valueStep/valueGain;
+    if (valueStep > 5.0) valueStep = 5.0*valueGain; else if (valueStep > 2.0) valueStep = 2.0*valueGain; else valueStep = valueGain;
+    valueMin = Math.floor(valueMin/valueStep-0.25)*valueStep;
+    valueMax = Math.ceil(valueMax/valueStep+0.25)*valueStep;
+    ctx.strokeStyle = "#EEEEEE";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (valueCurrent = valueMin+valueStep; valueCurrent < valueMax-valueStep/2.0; valueCurrent += valueStep) {
+      ctx.moveTo(0, (valueMax-valueCurrent)/(valueMax-valueMin)*height+0.5);
+      ctx.lineTo(width, (valueMax-valueCurrent)/(valueMax-valueMin)*height+0.5);
+    }
+    ctx.stroke();
+                        
+    ctx.font = "normal 16px sans-serif";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "white";
+    for (valueCurrent = valueMin+valueStep; valueCurrent < valueMax-valueStep/2.0; valueCurrent += valueStep) {
+      ctx.fillText(valueCurrent.toFixed(2), 10.0, (valueMax-valueCurrent)/(valueMax-valueMin)*height-5.0);
+    }
+    ctx.fillStyle = "#FF0000";
+    ctx.fillText("Tilt Angle from Accelerometer: "+(value0[value0.length-1]*1.0).toFixed(3)+" ["+valueUnit+"]", width/2.0, 40);
+    ctx.fillStyle = "#FFFF00";
+    ctx.fillText("Tilt Angle from Gyro: "+(value1[value1.length-1]*1.0).toFixed(3)+" ["+valueUnit+"]", width/2.0, 65);
+    ctx.fillStyle = "#00FF00";
+    ctx.fillText("Tilt Angle from Kalman-Filter: "+(value2[value2.length-1]*1.0).toFixed(3)+" ["+valueUnit+"]", width/2.0, 90);
+    ctx.fillStyle = "#00AA00";
+    ctx.fillText("Tilt Angle from Complementary Filter: "+(value3[value3.length-1]*1.0).toFixed(3)+" ["+valueUnit+"]", width/2.0, 115);
+                        
+    ctx.strokeStyle = "#FF0000";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, (valueMax-value0[0])/(valueMax-valueMin)*height+0.5);
+    for (i = 1; i < value0.length; i++) {
+      ctx.lineTo(i/(value0.length-1)*width, (valueMax-value0[i])/(valueMax-valueMin)*height+0.5);
+    }
+    ctx.stroke();
+                        
+    ctx.strokeStyle = "#FFFF00";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, (valueMax-value1[0])/(valueMax-valueMin)*height+0.5);
+    for (i = 1; i < value1.length; i++) {
+      ctx.lineTo(i/(value1.length-1)*width, (valueMax-value1[i])/(valueMax-valueMin)*height+0.5);
+    }
+    ctx.stroke();
+                        
+    ctx.strokeStyle = "#00FF00";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, (valueMax-value2[0])/(valueMax-valueMin)*height+0.5);
+    for (i = 1; i < value2.length; i++) {
+      ctx.lineTo(i/(value2.length-1)*width, (valueMax-value2[i])/(valueMax-valueMin)*height+0.5);
+    }
+    ctx.stroke();
+                        
+    ctx.strokeStyle = "#00AA00";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, (valueMax-value3[0])/(valueMax-valueMin)*height+0.5);
+    for (i = 1; i < value3.length; i++) {
+      ctx.lineTo(i/(value3.length-1)*width, (valueMax-value3[i])/(valueMax-valueMin)*height+0.5);
+    }
+    ctx.stroke();
+                        
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width-1, height-1);
+  }
+  </script>
+  <table width="100%" height="100%" border="0" frame="void" cellspacing="20" cellpadding="0">
+    <tr>
+      <th><canvas id="sensorfusion"></canvas></th>
+    </tr>
+  </table>
+</body>
+</html>
