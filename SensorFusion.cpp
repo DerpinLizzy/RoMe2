@@ -13,11 +13,13 @@ const float SensorFusion::M_PI = 3.14159265358979323846f;   // the mathematical 
 
 const float SensorFusion::S_Q_ALPHA = 0.000010f;            // standard deviation of process parameter (angle)
 const float SensorFusion::S_Q_OMEGA = 0.010000f;            // standard deviation of process parameter (rotation)
-const float SensorFusion::S_R_ALPHA = 0.001000f;            // standard deviation of angle measurement
-const float SensorFusion::S_R_OMEGA = 0.000001f;            // standard deviation of gyro measurement
+const float SensorFusion::S_R_ALPHA = 0.000300f;            // standard deviation of angle measurement
+const float SensorFusion::S_R_OMEGA = 0.001000f;            // standard deviation of gyro measurement
 
-const float SensorFusion::LOWPASS_FILTER_FREQUENCY = 1.0f;  // frequency of the lowpass filter, given in [rad/s]
-const float SensorFusion::HIGHPASS_FILTER_FREQUENCY = 1.0f; // frequency of the highpass filter, given in [rad/s]
+const float SensorFusion::LOWPASS_FILTER_FREQUENCY = 20.0f;  // frequency of the lowpass filter, given in [rad/s]
+const float SensorFusion::HIGHPASS_FILTER_FREQUENCY = 9.0f; // frequency of the highpass filter, given in [rad/s]
+
+const float OFFSET = 0.075f/40.0f;
 
 /**
  * Creates a SensorFusion object.
@@ -126,7 +128,7 @@ void SensorFusion::run() {
         // calculate tilt angle from acceleration sensors and from gyro
         
         tiltAngleA = atan2(accelerationY, accelerationZ);
-        tiltAngleG += gyroX*PERIOD;
+        tiltAngleG += gyroX*PERIOD - OFFSET * PERIOD;
         
         // calculate prediction for sensor fusion with Kalman-filter
         

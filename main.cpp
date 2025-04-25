@@ -10,6 +10,9 @@
 #include "SensorFusion.h"
 #include "HTTPServer.h"
 #include "HTTPScriptSensorFusion.h"
+#include <iostream>
+#include <fstream>
+using namespace std;
 
 int main() {
     
@@ -47,10 +50,30 @@ int main() {
     HTTPServer* httpServer = new HTTPServer(*ethernet);
     httpServer->add("sensorfusion", new HTTPScriptSensorFusion(sensorFusion));
     
+    // making funny outputs
+    char line;
+    fstream file;
+    file.open("According to all known laws of avia.txt", ios::in);
+    int i = 0;
     while (true) {
         
         led = !led;
-        
+        if(i == 1) printf("workin fine boss\n"); i = 0;
+        i += 0.002;
+        if(file){
+
+            file >> line;
+            if(file.eof()){
+                file.close();
+                file.open("According to all known laws of avia.txt", ios::in);
+                printf("You open the door . . .\n");
+            }else{
+                printf("workin well ennuff Boss!!\n");
+                printf("%c",line);
+                cout << line;
+            }
+        }
+
         ThisThread::sleep_for(250ms);
     }
 }
