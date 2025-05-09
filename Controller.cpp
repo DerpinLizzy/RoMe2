@@ -10,17 +10,21 @@ using namespace std;
 
 const float Controller::PERIOD = 0.001f;                    // period of control task, given in [s]
 const float Controller::M_PI = 3.14159265f;                 // the mathematical constant PI
-const float Controller::WHEEL_DISTANCE = 0.190f * 0.978f;            // distance between wheels, given in [m]
+const float Controller::WHEEL_DISTANCE = 0.190f;            // distance between wheels, given in [m]
 const float Controller::WHEEL_RADIUS = 0.0375f;             // radius of wheels, given in [m]
 const float Controller::MAXIMUM_VELOCITY = 500.0;           // maximum wheel velocity, given in [rpm]
 const float Controller::MAXIMUM_ACCELERATION = 200.0;       // maximum wheel acceleration, given in [rpm/s]
-const float Controller::COUNTS_PER_TURN = 86016.0f;          // encoder resolution (pololu motors: 1200.0f, maxon motors: 86016.0f)
+const float Controller::COUNTS_PER_TURN = 1200.0f;          // encoder resolution (pololu motors: 1200.0f, maxon motors: 86016.0f)
 const float Controller::LOWPASS_FILTER_FREQUENCY = 300.0f;  // given in [rad/s]
-const float Controller::KN = 45.0f;                         // speed constant in [rpm/V] (pololu motors: 40.0f, maxon motors: 45.0f)
-const float Controller::KP = 0.15f;                         // speed control parameter
+const float Controller::KN = 40.0f;                         // speed constant in [rpm/V] (pololu motors: 40.0f, maxon motors: 45.0f)
+const float Controller::KP = 0.15f;                         // speed controller gain in [V/rpm]
 const float Controller::MAX_VOLTAGE = 12.0f;                // battery voltage in [V]
 const float Controller::MIN_DUTY_CYCLE = 0.02f;             // minimum duty-cycle
 const float Controller::MAX_DUTY_CYCLE = 0.98f;             // maximum duty-cycle
+const float Controller::SIGMA_TRANSLATION = 0.0001;         // standard deviation of estimated translation per period, given in [m]
+const float Controller::SIGMA_ORIENTATION = 0.0002;         // standard deviation of estimated orientation per period, given in [rad]
+const float Controller::SIGMA_DISTANCE = 0.01;              // standard deviation of distance measurement, given in [m]
+const float Controller::SIGMA_GAMMA = 0.02;                 // standard deviation of angle measurement, given in [rad]
 
 /**
  * Creates and initialises the robot controller.
@@ -74,6 +78,16 @@ Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counte
     y = 0.0f;
     alpha = 0.0f;
 
+    p[0][0] = 0.001f;
+    p[0][1] = 0.0f;
+    p[0][2] = 0.0f;
+    p[1][0] = 0.0f;
+    p[1][1] = 0.001f;
+    p[1][2] = 0.0f;
+    p[2][0] = 0.0f;
+    p[2][1] = 0.0f;
+    p[2][2] = 0.001f;
+    
     // start thread and timer interrupt
 
     thread.start(callback(this, &Controller::run));
@@ -178,6 +192,90 @@ float Controller::getAlpha() {
     return alpha;
 }
 
+/**
+ * Correct the pose with given actual and measured coordinates of a beacon.
+ * @param actualBeacon the actual (known) coordinates of the beacon.
+ * @param measuredBeacon the coordinates of the beacon measured with a sensor (i.e. a laser scanner).
+ */
+void Controller::correctPoseWithBeacon(Point actualBeacon, Point measuredBeacon) {
+    
+    // create copies of current state and covariance matrix for Kalman filter P
+    
+    float x = this->x;
+    float y = this->y;
+    float alpha = this->alpha;
+    
+    float p[3][3];
+    
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            p[i][j] = this->p[i][j];
+        }
+    }
+    
+    // calculate covariance matrix of innovation S
+    
+    float s[2][2];
+    float r = sqrt((actualBeacon.x-x)*(actualBeacon.x-x)+(actualBeacon.y-y)*(actualBeacon.y-y));
+    
+    s[0][0] = 1.0f/r/r*(p[1][0]*actualBeacon.x*actualBeacon.y+p[1][1]*actualBeacon.y*actualBeacon.y+r*r*SIGMA_DISTANCE*SIGMA_DISTANCE+p[0][0]*(actualBeacon.x-x)*(actualBeacon.x-x)-p[1][0]*actualBeacon.y*x+p[0][1]*(actualBeacon.x-x)*(actualBeacon.y-y)-p[1][0]*actualBeacon.x*y-2.0f*p[1][1]*actualBeacon.y*y+p[1][0]*x*y+p[1][1]*y*y);
+    s[0][1] = -(1.0f/r/r/r*(-p[1][1]*actualBeacon.x*actualBeacon.y+p[1][0]*actualBeacon.y*actualBeacon.y-p[0][2]*actualBeacon.x*r*r-p[1][2]*actualBeacon.y*r*r-p[0][1]*(actualBeacon.x-x)*(actualBeacon.x-x)+p[1][1]*actualBeacon.y*x+p[0][2]*r*r*x+p[0][0]*(actualBeacon.x-x)*(actualBeacon.y-y)+p[1][1]*actualBeacon.x*y-2.0f*p[1][0]*actualBeacon.y*y+p[1][2]*r*r*y-p[1][1]*x*y+p[1][0]*y*y));
+    s[1][0] = ((actualBeacon.x-x)*(p[2][0]*r*r+p[1][0]*(actualBeacon.x-x)+p[0][0]*(-actualBeacon.y+y))+(actualBeacon.y-y)*(p[2][1]*r*r+p[1][1]*(actualBeacon.x-x)+p[0][1]*(-actualBeacon.y+y)))/r/r/r;
+    s[1][1] = p[2][2]+SIGMA_GAMMA*SIGMA_GAMMA+p[1][2]*(actualBeacon.x-x)/r/r+p[0][2]*(-actualBeacon.y+y)/r/r-(actualBeacon.y-y)*(p[2][0]*r*r+p[1][0]*(actualBeacon.x-x)+p[0][0]*(-actualBeacon.y+y))/r/r/r/r+(actualBeacon.x-x)*(p[2][1]*r*r+p[1][1]*(actualBeacon.x-x)+p[0][1]*(-actualBeacon.y+y))/r/r/r/r;
+    
+    // calculate Kalman matrix K
+    
+    float k[3][2];
+    
+    k[0][0] = -((s[1][0]*(-p[0][2]+(p[0][1]*(-actualBeacon.x+x))/r/r+(p[0][0]*(actualBeacon.y-y))/r/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]))+(s[1][1]*((p[0][0]*(-actualBeacon.x+x))/r+(p[0][1]*(-actualBeacon.y+y))/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]);
+    k[0][1] = (s[0][0]*(-p[0][2]+(p[0][1]*(-actualBeacon.x+x))/r/r+(p[0][0]*(actualBeacon.y-y))/r/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1])-(s[0][1]*((p[0][0]*(-actualBeacon.x+x))/r+(p[0][1]*(-actualBeacon.y+y))/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]);
+    k[1][0] = -((s[1][0]*(-p[1][2]+(p[1][1]*(-actualBeacon.x+x))/r/r+(p[1][0]*(actualBeacon.y-y))/r/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]))+(s[1][1]*((p[1][0]*(-actualBeacon.x+x))/r+(p[1][1]*(-actualBeacon.y+y))/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]);
+    k[1][1] = (s[0][0]*(-p[1][2]+(p[1][1]*(-actualBeacon.x+x))/r/r+(p[1][0]*(actualBeacon.y-y))/r/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1])-(s[0][1]*((p[1][0]*(-actualBeacon.x+x))/r+(p[1][1]*(-actualBeacon.y+y))/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]);
+    k[2][0] = -((s[1][0]*(-p[2][2]+(p[2][1]*(-actualBeacon.x+x))/r/r+(p[2][0]*(actualBeacon.y-y))/r/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]))+(s[1][1]*((p[2][0]*(-actualBeacon.x+x))/r+(p[2][1]*(-actualBeacon.y+y))/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]);
+    k[2][1] = (s[0][0]*(-p[2][2]+(p[2][1]*(-actualBeacon.x+x))/r/r+(p[2][0]*(actualBeacon.y-y))/r/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1])-(s[0][1]*((p[2][0]*(-actualBeacon.x+x))/r+(p[2][1]*(-actualBeacon.y+y))/r))/(-(s[0][1]*s[1][0])+s[0][0]*s[1][1]);
+    
+    // calculate pose correction
+    
+    float distanceMeasured = sqrt((measuredBeacon.x-x)*(measuredBeacon.x-x)+(measuredBeacon.y-y)*(measuredBeacon.y-y));
+    float gammaMeasured = atan2(measuredBeacon.y-y, measuredBeacon.x-x)-alpha;
+    
+    if (gammaMeasured > M_PI) gammaMeasured -= 2.0f*M_PI;
+    else if (gammaMeasured < -M_PI) gammaMeasured += 2.0f*M_PI;
+    
+    float distanceEstimated = sqrt((actualBeacon.x-x)*(actualBeacon.x-x)+(actualBeacon.y-y)*(actualBeacon.y-y));
+    float gammaEstimated = atan2(actualBeacon.y-y, actualBeacon.x-x)-alpha;
+    
+    if (gammaEstimated > M_PI) gammaEstimated -= 2.0f*M_PI;
+    else if (gammaEstimated < -M_PI) gammaEstimated += 2.0f*M_PI;
+    
+    x += k[0][0]*(distanceMeasured-distanceEstimated)+k[0][1]*(gammaMeasured-gammaEstimated);
+    y += k[1][0]*(distanceMeasured-distanceEstimated)+k[1][1]*(gammaMeasured-gammaEstimated);
+    alpha += k[2][0]*(distanceMeasured-distanceEstimated)+k[2][1]*(gammaMeasured-gammaEstimated);
+    
+    this->x = x;
+    this->y = y;
+    this->alpha = alpha;
+    
+    // calculate correction of covariance matrix for Kalman filter P
+    
+    p[0][0] = k[0][1]*p[2][0]+p[0][0]*(1-(k[0][0]*(-actualBeacon.x+x))/r-(k[0][1]*(actualBeacon.y-y))/r/r)+p[1][0]*(-((k[0][1]*(-actualBeacon.x+x))/r/r)-(k[0][0]*(-actualBeacon.y+y))/r);
+    p[0][1] = k[0][1]*p[2][1]+p[0][1]*(1-(k[0][0]*(-actualBeacon.x+x))/r-(k[0][1]*(actualBeacon.y-y))/r/r)+p[1][1]*(-((k[0][1]*(-actualBeacon.x+x))/r/r)-(k[0][0]*(-actualBeacon.y+y))/r);
+    p[0][2] = k[0][1]*p[2][2]+p[0][2]*(1-(k[0][0]*(-actualBeacon.x+x))/r-(k[0][1]*(actualBeacon.y-y))/r/r)+p[1][2]*(-((k[0][1]*(-actualBeacon.x+x))/r/r)-(k[0][0]*(-actualBeacon.y+y))/r);
+    
+    p[1][0] = k[1][1]*p[2][0]+p[0][0]*(-((k[1][0]*(-actualBeacon.x+x))/r)-(k[1][1]*(actualBeacon.y-y))/r/r)+p[1][0]*(1-(k[1][1]*(-actualBeacon.x+x))/r/r-(k[1][0]*(-actualBeacon.y+y))/r);
+    p[1][1] = k[1][1]*p[2][1]+p[0][1]*(-((k[1][0]*(-actualBeacon.x+x))/r)-(k[1][1]*(actualBeacon.y-y))/r/r)+p[1][1]*(1-(k[1][1]*(-actualBeacon.x+x))/r/r-(k[1][0]*(-actualBeacon.y+y))/r);
+    p[1][2] = k[1][1]*p[2][2]+p[0][2]*(-((k[1][0]*(-actualBeacon.x+x))/r)-(k[1][1]*(actualBeacon.y-y))/r/r)+p[1][2]*(1-(k[1][1]*(-actualBeacon.x+x))/r/r-(k[1][0]*(-actualBeacon.y+y))/r);
+    
+    p[2][0] = (1+k[2][1])*p[2][0]+p[0][0]*(-((k[2][0]*(-actualBeacon.x+x))/r)-(k[2][1]*(actualBeacon.y-y))/r/r)+p[1][0]*(-((k[2][1]*(-actualBeacon.x+x))/r/r)-(k[2][0]*(-actualBeacon.y+y))/r);
+    p[2][1] = (1+k[2][1])*p[2][1]+p[0][1]*(-((k[2][0]*(-actualBeacon.x+x))/r)-(k[2][1]*(actualBeacon.y-y))/r/r)+p[1][1]*(-((k[2][1]*(-actualBeacon.x+x))/r/r)-(k[2][0]*(-actualBeacon.y+y))/r);
+    p[2][2] = (1+k[2][1])*p[2][2]+p[0][2]*(-((k[2][0]*(-actualBeacon.x+x))/r)-(k[2][1]*(actualBeacon.y-y))/r/r)+p[1][2]*(-((k[2][1]*(-actualBeacon.x+x))/r/r)-(k[2][0]*(-actualBeacon.y+y))/r);
+    
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            this->p[i][j] = p[i][j];
+        }
+    }
+}
 
 /**
  * This method is called by the ticker timer interrupt service routine.
@@ -253,8 +351,11 @@ void Controller::run() {
         float deltaTranslation = actualTranslationalVelocity*PERIOD;
         float deltaOrientation = actualRotationalVelocity*PERIOD;
         
-        x += cos(alpha+deltaOrientation)*deltaTranslation;
-        y += sin(alpha+deltaOrientation)*deltaTranslation;
+        float sinAlpha = sin(alpha+deltaOrientation);
+        float cosAlpha = cos(alpha+deltaOrientation);
+
+        x += cosAlpha*deltaTranslation;
+        y += sinAlpha*deltaTranslation;
         
         float alpha = this->alpha+deltaOrientation;
         
@@ -262,5 +363,19 @@ void Controller::run() {
         while (alpha < -M_PI) alpha += 2.0f*M_PI;
         
         this->alpha = alpha;
+        
+        // calculate covariance matrix for Kalman filter P
+        
+        p[0][0] = p[0][0]+SIGMA_TRANSLATION*SIGMA_TRANSLATION*cosAlpha*cosAlpha+deltaTranslation*deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2])*sinAlpha*sinAlpha-deltaTranslation*(p[0][2]+p[2][0])*sinAlpha;
+        p[0][1] = p[0][1]-deltaTranslation*p[2][1]*sinAlpha+cosAlpha*(deltaTranslation*p[0][2]+(SIGMA_TRANSLATION*SIGMA_TRANSLATION-deltaTranslation*deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2]))*sinAlpha);
+        p[0][2] = p[0][2]-deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2])*sinAlpha;
+        
+        p[1][0] = p[1][0]-deltaTranslation*p[1][2]*sinAlpha+cosAlpha*(deltaTranslation*p[2][0]+(SIGMA_TRANSLATION*SIGMA_TRANSLATION-deltaTranslation*deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2]))*sinAlpha);
+        p[1][1] = p[1][1]+deltaTranslation*deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2])*cosAlpha*cosAlpha+deltaTranslation*(p[1][2]+p[2][1])*cosAlpha+SIGMA_TRANSLATION*SIGMA_TRANSLATION*sinAlpha*sinAlpha;
+        p[1][2] = p[1][2]+deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2])*cosAlpha;
+        
+        p[2][0] = p[2][0]-deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2])*sinAlpha;
+        p[2][1] = p[2][1]+deltaTranslation*(SIGMA_ORIENTATION*SIGMA_ORIENTATION+p[2][2])*cosAlpha;
+        p[2][2] = p[2][2]+SIGMA_ORIENTATION*SIGMA_ORIENTATION;
     }
 }

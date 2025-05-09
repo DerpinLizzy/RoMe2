@@ -93,8 +93,20 @@ void StateMachine::run() {
                     
                     enableMotorDriver = 1;
                     
+                    float velocity = 0.2f;
+                    float zone = 0.1f;
+                    
                     taskList.push_back(new TaskWait(controller, 0.5f));
-                    taskList.push_back(new TaskMove(controller, 0.0f, 1.0f));
+
+                    for (int i = 0; i < 3; i++) {
+                        
+                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 0.0f, 0.0f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.5f, 0.5f, 1.57f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 1.0f, 3.14f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 0.0f, 1.0f, 3.14f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, -0.5f, 0.5f, -1.57f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 0.0f, 0.0f, 0.0f, velocity, zone));
+                    }
                     
                     state = MOVE_FORWARD;
                 }

@@ -11,6 +11,7 @@
 #include <mbed.h>
 #include "EncoderCounter.h"
 #include "Motion.h"
+#include "Point.h"
 #include "LowpassFilter.h"
 #include "ThreadFlag.h"
 
@@ -34,6 +35,7 @@ class Controller {
         float   getY();
         void    setAlpha(float alpha);
         float   getAlpha();
+        void    correctPoseWithBeacon(Point actualBeacon, Point measuredBeacon);
         
     private:
         
@@ -45,13 +47,17 @@ class Controller {
         static const float  WHEEL_RADIUS;               // radius of wheels, given in [m]
         static const float  MAXIMUM_VELOCITY;           // maximum wheel velocity, given in [rpm]
         static const float  MAXIMUM_ACCELERATION;       // maximum wheel acceleration, given in [rpm/s]
-        static const float  COUNTS_PER_TURN;
-        static const float  LOWPASS_FILTER_FREQUENCY;
-        static const float  KN;
-        static const float  KP;
-        static const float  MAX_VOLTAGE;
-        static const float  MIN_DUTY_CYCLE;
-        static const float  MAX_DUTY_CYCLE;
+        static const float  COUNTS_PER_TURN;            // encoder resolution
+        static const float  LOWPASS_FILTER_FREQUENCY;   // given in [rad/s]
+        static const float  KN;                         // speed constant in [rpm/V]
+        static const float  KP;                         // speed controller gain in [V/rpm]
+        static const float  MAX_VOLTAGE;                // battery voltage in [V]
+        static const float  MIN_DUTY_CYCLE;             // minimum duty-cycle
+        static const float  MAX_DUTY_CYCLE;             // maximum duty-cycle
+        static const float  SIGMA_TRANSLATION;          // standard deviation of estimated translation per period, given in [m]
+        static const float  SIGMA_ORIENTATION;          // standard deviation of estimated orientation per period, given in [rad]
+        static const float  SIGMA_DISTANCE;             // standard deviation of distance measurement, given in [m]
+        static const float  SIGMA_GAMMA;                // standard deviation of angle measurement, given in [rad]
 
         PwmOut&             pwmLeft;
         PwmOut&             pwmRight;
@@ -74,6 +80,7 @@ class Controller {
         float               x;
         float               y;
         float               alpha;
+        float               p[3][3];
         ThreadFlag          threadFlag;
         Thread              thread;
         Ticker              ticker;
