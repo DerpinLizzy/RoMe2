@@ -58,7 +58,10 @@ int main() {
     while (true) {
         
         led = !led;
-        if(i == 1) printf("workin fine boss\n"); i = 0;
+        if(i == 1){ 
+            printf("workin fine boss\n");
+            i = 0;
+        }
         i += 0.002;
         if(file){
 
