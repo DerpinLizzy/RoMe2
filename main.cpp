@@ -94,13 +94,66 @@ int main() {
     HTTPServer* httpServer = new HTTPServer(*ethernet);
     httpServer->add("lidar", new HTTPScriptLIDAR(*lidar));
 
+    // Variables
+    float y_a = 0.5;
+    float x_a_1 = 0.0;
+    float x_a_2 = 2.0;
+    float x_a_3 = 4.0;
+    float x_a_4 = 6.0;
+
+    Point beacon_1;
+    beacon_1.x = x_a_1;
+    beacon_1.y = y_a;
+
+    Point beacon_2;
+    beacon_2.x = x_a_3;
+    beacon_2.y = y_a;
+
+    Point beacon_3;
+    beacon_3.x = x_a_3;
+    beacon_3.y = y_a;
+
+    Point beacon_4;
+    beacon_4.x = x_a_4;
+    beacon_4.y = y_a;
+
+
     while (true) {
         
         led = !led;
         
-        ThisThread::sleep_for(100ms);
+        float x = controller.getX();
+        float y = controller.getY();
+        float alpha = controller.getAlpha();
         
-        
+        deque<Point> beacons = lidar->getBeacons();
+        for(int i = 0; i<beacons.size();i+=1){
+            float x_l_m = beacons.at(i).x;
+            float y_l_m = beacons.at(i).y;
+
+            Point beacon_g_m;
+            beacon_g_m.x = cos(alpha) * x_l_m - sin(alpha) * y_l_m + x;
+            beacon_g_m.y = sin(alpha) *x_l_m + cos(alpha) * y_l_m + y;
+
+            if(beacon_1.distance(beacon_g_m) < 0.4f){
+                controller.correctPoseWithBeacon(beacon_1, beacon_g_m);
+
+            } else if(beacon_2.distance(beacon_g_m) < 0.4f){
+                controller.correctPoseWithBeacon(beacon_2, beacon_g_m);
+
+            } else if(beacon_3.distance(beacon_g_m) < 0.4f){
+                controller.correctPoseWithBeacon(beacon_3, beacon_g_m);
+
+            } else if(beacon_4.distance(beacon_g_m) < 0.4f){
+                controller.correctPoseWithBeacon(beacon_4, beacon_g_m);
+
+            }else{
+                printf("You Suck!!");
+            }
+
+        }
+
+        ThisThread::sleep_for(100ms);  
         
     }
 }
