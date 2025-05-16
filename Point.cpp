@@ -16,22 +16,17 @@ Point::Point() {
     
     x = 0.0f;
     y = 0.0f;
-    r = 0.0f;
-    alpha = 0.0f;
 }
 
 /**
- * Creates a Point object from given polar coordinates.
- * @param r the radius of a point.
- * @param alpha the angle of a point.
+ * Creates a Point object from given Cartesian coordinates.
+ * @param x the X coordinate of the point.
+ * @param y the Y coordinate of the point.
  */
-Point::Point(float r, float alpha) {
+Point::Point(float x, float y) {
     
-    x = r*cos(alpha);
-    y = r*sin(alpha);
-    
-    this->r = r;
-    this->alpha = alpha;
+    this->x = x;
+    this->y = y;
 }
 
 /**

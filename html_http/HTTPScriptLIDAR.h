@@ -11,6 +11,7 @@
 #include <vector>
 #include "HTTPScript.h"
 #include "LIDAR.h"
+#include "Controller.h"
 
 /**
  * This is a specific http script to read scans from a LIDAR.
@@ -20,13 +21,14 @@ class HTTPScriptLIDAR : public HTTPScript {
     
     public:
         
-                            HTTPScriptLIDAR(LIDAR& lidar);
+                            HTTPScriptLIDAR(LIDAR& lidar, Controller& controller);
         virtual             ~HTTPScriptLIDAR();
         virtual std::string call(std::vector<std::string> names, std::vector<std::string> values);
         
     private:
         
-        LIDAR&  lidar;
+        LIDAR&      lidar;
+        Controller& controller;
 };
 
 #endif /* HTTP_SCRIPT_LIDAR_H_ */

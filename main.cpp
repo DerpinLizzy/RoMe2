@@ -64,8 +64,13 @@ int main() {
     DigitalOut csAG(PC_8);
     DigitalOut csM(PC_9);
     
-    IMU imu(spi, csAG, csM);
+    IMU* imu = new IMU(spi, csAG, csM);
 
+    // create robot controller objects
+    
+    Controller* controller = new Controller(pwmLeft, pwmRight, counterLeft, counterRight, *imu);
+    StateMachine* stateMachine = new StateMachine(*controller, enableMotorDriver, led0, led1, led2, led3, led4, led5, button, irSensor0, irSensor1, irSensor2, irSensor3, irSensor4, irSensor5);
+    
     // create LIDAR device driver
     
     PwmOut pwm(PE_9);
@@ -75,12 +80,7 @@ int main() {
     ThisThread::sleep_for(500ms);
     
     UnbufferedSerial* serial = new UnbufferedSerial(PG_14, PG_9);
-    LIDAR* lidar = new LIDAR(*serial);
-    
-    // create robot controller objects
-    
-    Controller controller(pwmLeft, pwmRight, counterLeft, counterRight);
-    StateMachine stateMachine(controller, enableMotorDriver, led0, led1, led2, led3, led4, led5, button, irSensor0, irSensor1, irSensor2, irSensor3, irSensor4, irSensor5);
+    LIDAR* lidar = new LIDAR(*serial, *controller);
     
     // create ethernet interface and webserver
     
@@ -92,68 +92,45 @@ int main() {
     ethernet->connect();
     
     HTTPServer* httpServer = new HTTPServer(*ethernet);
-    httpServer->add("lidar", new HTTPScriptLIDAR(*lidar));
-
-    // Variables
-    float y_a = 0.5;
-    float x_a_1 = 0.0;
-    float x_a_2 = 2.0;
-    float x_a_3 = 4.0;
-    float x_a_4 = 6.0;
-
-    Point beacon_1;
-    beacon_1.x = x_a_1;
-    beacon_1.y = y_a;
-
-    Point beacon_2;
-    beacon_2.x = x_a_3;
-    beacon_2.y = y_a;
-
-    Point beacon_3;
-    beacon_3.x = x_a_3;
-    beacon_3.y = y_a;
-
-    Point beacon_4;
-    beacon_4.x = x_a_4;
-    beacon_4.y = y_a;
-
+    httpServer->add("lidar", new HTTPScriptLIDAR(*lidar, *controller));
 
     while (true) {
         
         led = !led;
         
-        float x = controller.getX();
-        float y = controller.getY();
-        float alpha = controller.getAlpha();
+        ThisThread::sleep_for(100ms);
+        
+        // process LIDAR scans
+        
+        Point actualBeacon0(0.0f, 0.5f);
+        Point actualBeacon1(2.0f, 0.5f);
+        Point actualBeacon2(4.0f, 0.5f);
+        Point actualBeacon3(6.0f, 0.5f);
         
         deque<Point> beacons = lidar->getBeacons();
-        for(int i = 0; i<beacons.size();i+=1){
-            float x_l_m = beacons.at(i).x;
-            float y_l_m = beacons.at(i).y;
-
-            Point beacon_g_m;
-            beacon_g_m.x = cos(alpha) * x_l_m - sin(alpha) * y_l_m + x;
-            beacon_g_m.y = sin(alpha) *x_l_m + cos(alpha) * y_l_m + y;
-
-            if(beacon_1.distance(beacon_g_m) < 0.4f){
-                controller.correctPoseWithBeacon(beacon_1, beacon_g_m);
-
-            } else if(beacon_2.distance(beacon_g_m) < 0.4f){
-                controller.correctPoseWithBeacon(beacon_2, beacon_g_m);
-
-            } else if(beacon_3.distance(beacon_g_m) < 0.4f){
-                controller.correctPoseWithBeacon(beacon_3, beacon_g_m);
-
-            } else if(beacon_4.distance(beacon_g_m) < 0.4f){
-                controller.correctPoseWithBeacon(beacon_4, beacon_g_m);
-
-            }else{
-                printf("You Suck!!");
-            }
-
-        }
-
-        ThisThread::sleep_for(100ms);  
         
+        for (int i = 0; i < beacons.size(); i++) {
+            
+            if (actualBeacon0.distance(beacons[i]) < 0.4f) {
+                
+                controller->correctPoseWithBeacon(actualBeacon0, beacons[i]);
+                
+            } else if (actualBeacon1.distance(beacons[i]) < 0.4f) {
+                
+                controller->correctPoseWithBeacon(actualBeacon1, beacons[i]);
+                
+            } else if (actualBeacon2.distance(beacons[i]) < 0.4f) {
+                
+                controller->correctPoseWithBeacon(actualBeacon2, beacons[i]);
+                
+            } else if (actualBeacon3.distance(beacons[i]) < 0.4f) {
+                
+                controller->correctPoseWithBeacon(actualBeacon3, beacons[i]);
+                
+            } else {
+                
+                // no match for detected beacon
+            }
+        }
     }
 }

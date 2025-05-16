@@ -18,11 +18,9 @@ class Point {
         
         float           x;
         float           y;
-        float           r;
-        float           alpha;
         
                         Point();
-                        Point(float r, float alpha);
+                        Point(float x, float y);
         virtual         ~Point();
         float           distance();
         float           distance(Point& point);

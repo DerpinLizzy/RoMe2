@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <mbed.h>
 #include "EncoderCounter.h"
+#include "IMU.h"
 #include "Motion.h"
 #include "Point.h"
 #include "LowpassFilter.h"
@@ -23,7 +24,7 @@ class Controller {
     
     public:
         
-                Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counterLeft, EncoderCounter& counterRight);
+                Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counterLeft, EncoderCounter& counterRight, IMU& imu);
         virtual ~Controller();
         void    setTranslationalVelocity(float velocity);
         void    setRotationalVelocity(float velocity);
@@ -35,6 +36,7 @@ class Controller {
         float   getY();
         void    setAlpha(float alpha);
         float   getAlpha();
+        void    resetGyroOffset();
         void    correctPoseWithBeacon(Point actualBeacon, Point measuredBeacon);
         
     private:
@@ -58,11 +60,13 @@ class Controller {
         static const float  SIGMA_ORIENTATION;          // standard deviation of estimated orientation per period, given in [rad]
         static const float  SIGMA_DISTANCE;             // standard deviation of distance measurement, given in [m]
         static const float  SIGMA_GAMMA;                // standard deviation of angle measurement, given in [rad]
+        static const float  DELTA_CORRECTION;           // maximum correction for pose coordinates per step, given in [m, rad]
 
         PwmOut&             pwmLeft;
         PwmOut&             pwmRight;
         EncoderCounter&     counterLeft;
         EncoderCounter&     counterRight;
+        IMU&                imu;
         float               translationalVelocity;
         float               rotationalVelocity;
         float               actualTranslationalVelocity;
@@ -77,6 +81,7 @@ class Controller {
         short               previousValueCounterRight;
         LowpassFilter       speedLeftFilter;
         LowpassFilter       speedRightFilter;
+        float               gyroOffset;
         float               x;
         float               y;
         float               alpha;

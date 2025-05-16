@@ -29,7 +29,7 @@ inline string float2String(float f) {
  * Create and initialize this http script.
  * @param lidar a reference to the lidar to read scans from.
  */
-HTTPScriptLIDAR::HTTPScriptLIDAR(LIDAR& lidar) : lidar(lidar) {}
+HTTPScriptLIDAR::HTTPScriptLIDAR(LIDAR& lidar, Controller& controller) : lidar(lidar), controller(controller) {}
 
 HTTPScriptLIDAR::~HTTPScriptLIDAR() {}
 
@@ -58,6 +58,11 @@ string HTTPScriptLIDAR::call(vector<string> names, vector<string> values) {
         response += "      <point><x><float>"+float2String(beacons[i].x)+"</float></x><y><float>"+float2String(beacons[i].y)+"</float></y></point>\r\n";
     }
     response += "    </beacons>\r\n";
+    response += "    <robot>\r\n";
+    response += "      <x><float>"+float2String(controller.getX())+"</float></x>\r\n";
+    response += "      <y><float>"+float2String(controller.getY())+"</float></y>\r\n";
+    response += "      <a><float>"+float2String(controller.getAlpha())+"</float></a>\r\n";
+    response += "    </robot>\r\n";
     response += "  </lidar>\r\n";
     
     return response;

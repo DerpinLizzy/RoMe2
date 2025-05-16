@@ -10,7 +10,7 @@ using namespace std;
 
 const float Controller::PERIOD = 0.001f;                    // period of control task, given in [s]
 const float Controller::M_PI = 3.14159265f;                 // the mathematical constant PI
-const float Controller::WHEEL_DISTANCE = 0.190f;            // distance between wheels, given in [m]
+const float Controller::WHEEL_DISTANCE = 0.150f;            // distance between wheels, given in [m]
 const float Controller::WHEEL_RADIUS = 0.0375f;             // radius of wheels, given in [m]
 const float Controller::MAXIMUM_VELOCITY = 500.0;           // maximum wheel velocity, given in [rpm]
 const float Controller::MAXIMUM_ACCELERATION = 200.0;       // maximum wheel acceleration, given in [rpm/s]
@@ -25,6 +25,7 @@ const float Controller::SIGMA_TRANSLATION = 0.0001;         // standard deviatio
 const float Controller::SIGMA_ORIENTATION = 0.0002;         // standard deviation of estimated orientation per period, given in [rad]
 const float Controller::SIGMA_DISTANCE = 0.01;              // standard deviation of distance measurement, given in [m]
 const float Controller::SIGMA_GAMMA = 0.02;                 // standard deviation of angle measurement, given in [rad]
+const float Controller::DELTA_CORRECTION = 0.01;            // maximum correction for pose coordinates per step, given in [m, rad]
 
 /**
  * Creates and initialises the robot controller.
@@ -33,7 +34,7 @@ const float Controller::SIGMA_GAMMA = 0.02;                 // standard deviatio
  * @param counterLeft a reference to the encoder counter of the left motor.
  * @param counterRight a reference to the encoder counter of the right motor.
  */
-Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counterLeft, EncoderCounter& counterRight) : pwmLeft(pwmLeft), pwmRight(pwmRight), counterLeft(counterLeft), counterRight(counterRight), thread(osPriorityHigh, STACK_SIZE) {
+Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counterLeft, EncoderCounter& counterRight, IMU& imu) : pwmLeft(pwmLeft), pwmRight(pwmRight), counterLeft(counterLeft), counterRight(counterRight), imu(imu), thread(osPriorityHigh, STACK_SIZE) {
     
     // initialise pwm outputs
 
@@ -73,6 +74,8 @@ Controller::Controller(PwmOut& pwmLeft, PwmOut& pwmRight, EncoderCounter& counte
 
     speedRightFilter.setPeriod(PERIOD);
     speedRightFilter.setFrequency(LOWPASS_FILTER_FREQUENCY);
+
+    gyroOffset = imu.readGyroZ();
 
     x = 0.0f;
     y = 0.0f;
@@ -193,6 +196,18 @@ float Controller::getAlpha() {
 }
 
 /**
+ * Resets the offset of the gyro to the current value.
+ */
+void Controller::resetGyroOffset() {
+    
+    const int N = 10;
+    
+    float gyroZ = 0.0f;
+    for (int i = 0; i < N; i++) gyroZ += imu.readGyroZ();
+    gyroOffset = gyroZ/(float)N;
+}
+
+/**
  * Correct the pose with given actual and measured coordinates of a beacon.
  * @param actualBeacon the actual (known) coordinates of the beacon.
  * @param measuredBeacon the coordinates of the beacon measured with a sensor (i.e. a laser scanner).
@@ -248,10 +263,14 @@ void Controller::correctPoseWithBeacon(Point actualBeacon, Point measuredBeacon)
     if (gammaEstimated > M_PI) gammaEstimated -= 2.0f*M_PI;
     else if (gammaEstimated < -M_PI) gammaEstimated += 2.0f*M_PI;
     
-    x += k[0][0]*(distanceMeasured-distanceEstimated)+k[0][1]*(gammaMeasured-gammaEstimated);
-    y += k[1][0]*(distanceMeasured-distanceEstimated)+k[1][1]*(gammaMeasured-gammaEstimated);
-    alpha += k[2][0]*(distanceMeasured-distanceEstimated)+k[2][1]*(gammaMeasured-gammaEstimated);
+    float dx = k[0][0]*(distanceMeasured-distanceEstimated)+k[0][1]*(gammaMeasured-gammaEstimated);
+    float dy = k[1][0]*(distanceMeasured-distanceEstimated)+k[1][1]*(gammaMeasured-gammaEstimated);
+    float dalpha = k[2][0]*(distanceMeasured-distanceEstimated)+k[2][1]*(gammaMeasured-gammaEstimated);
     
+    x += (dx > DELTA_CORRECTION) ? DELTA_CORRECTION : (dx < -DELTA_CORRECTION) ? -DELTA_CORRECTION : dx;
+    y += (dy > DELTA_CORRECTION) ? DELTA_CORRECTION : (dy < -DELTA_CORRECTION) ? -DELTA_CORRECTION : dy;
+    alpha += (dalpha > DELTA_CORRECTION) ? DELTA_CORRECTION : (dalpha < -DELTA_CORRECTION) ? -DELTA_CORRECTION : dalpha;
+
     this->x = x;
     this->y = y;
     this->alpha = alpha;
@@ -344,7 +363,7 @@ void Controller::run() {
         // calculate the values 'actualTranslationalVelocity' and 'actualRotationalVelocity' using the kinematic model
 
         actualTranslationalVelocity = (actualSpeedLeft-actualSpeedRight)*2.0f*M_PI/60.0f*WHEEL_RADIUS/2.0f;
-        actualRotationalVelocity = (-actualSpeedRight-actualSpeedLeft)*2.0f*M_PI/60.0f*WHEEL_RADIUS/WHEEL_DISTANCE;
+        actualRotationalVelocity = imu.readGyroZ()-gyroOffset;
         
         // calculate the actual robot pose
         

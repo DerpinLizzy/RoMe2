@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Robot Localisation</title>
+  <style type="text/css">
+    html {background-color: #223344;}
+    h2 {font-family:Helvetica,Arial,sans-serif; font-size: 24; color:#FFFFFF;}
+    p {font-family:Helvetica,Arial,sans-serif; font-size: 16; color:#EEEEEE;}
+  </style>
+</head>
+<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">
+  <script type="text/javascript">
+  const robotImage = new Image();
+  robotImage.src = './robot.png';
+  var xmlhttp = null;
+  var task = window.setInterval("update()", 500);
+  function update() {
+    if (window.XMLHttpRequest) {
+      xmlhttp = new XMLHttpRequest();
+    } else if (window.ActiveXObject) {
+      try {
+        xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+      } catch (exception) {
+        try {
+          xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+        } catch (exception) {}
+      }
+    }
+    xmlhttp.onreadystatechange = refresh;
+    xmlhttp.open("GET", "/cgi-bin/lidar");
+    xmlhttp.send(null);
+  }
+  function refresh() {
+    if (xmlhttp.readyState == 4) {
+      var xml = xmlhttp.responseXML;
+      var intValues = xml.getElementsByTagName("int");
+      var floatValues = xml.getElementsByTagName("float");
+      var sizeScan = intValues[0].childNodes[0].nodeValue;
+      var sizeBeacons = intValues[1].childNodes[0].nodeValue;
+      var x = [];
+      var y = [];
+      var xBeacon = [];
+      var yBeacon = [];
+      for (i = 0; i < sizeScan; i++) {
+        x.push(floatValues[2*i].childNodes[0].nodeValue);
+        y.push(floatValues[2*i+1].childNodes[0].nodeValue);
+      }
+      for (i = 0; i < sizeBeacons; i++) {
+        xBeacon.push(floatValues[2*i+2*sizeScan].childNodes[0].nodeValue);
+        yBeacon.push(floatValues[2*i+2*sizeScan+1].childNodes[0].nodeValue);
+      }
+      var xRobot = floatValues[2*sizeScan+2*sizeBeacons+0].childNodes[0].nodeValue;
+      var yRobot = floatValues[2*sizeScan+2*sizeBeacons+1].childNodes[0].nodeValue;
+      var alphaRobot = floatValues[2*sizeScan+2*sizeBeacons+2].childNodes[0].nodeValue;
+      drawScan("lidar", robotImage, x, y, xBeacon, yBeacon, xRobot, yRobot, alphaRobot);
+    }
+  }
+  function drawScan(id, robotImage, x, y, xBeacon, yBeacon, xRobot, yRobot, alphaRobot) {
+    var canvas = document.getElementById(id);
+    var width = window.innerWidth-50;
+    var height = window.innerHeight-50;
+    canvas.width = 2*width;
+    canvas.height = 2*height;
+    canvas.style.width = width+"px";
+    canvas.style.height = height+"px";
+    var ctx = canvas.getContext("2d");
+    ctx.scale(2,2);
+    ctx.fillStyle = "#334455";
+    ctx.fillRect(0.5, 0.5, width-1, height-1);
+    var xMin = -2.0;
+    var xMax = 8.0;
+    var yMin = -3.0;
+    var yMax = 3.0;
+    if (width > height) {
+      var xMean = (xMin+xMax)/2.0;
+      xMin = xMean-0.5*(yMax-yMin)*width/height;
+      xMax = xMean+0.5*(yMax-yMin)*width/height;
+    } else {
+      var yMean = (yMin+yMax)/2.0;
+      yMin = yMean-0.5*(xMax-xMin)*height/width;
+      yMax = yMean+0.5*(xMax-xMin)*height/width;
+    }
+    ctx.strokeStyle = "#445566";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (xGrid = 0.0; xGrid < xMax; xGrid += 0.1) {
+      ctx.moveTo((xGrid-xMin)/(xMax-xMin)*width, 0.0);
+      ctx.lineTo((xGrid-xMin)/(xMax-xMin)*width, height);
+    }
+    for (xGrid = 0.0; xGrid > xMin; xGrid -= 0.1) {
+      ctx.moveTo((xGrid-xMin)/(xMax-xMin)*width, 0.0);
+      ctx.lineTo((xGrid-xMin)/(xMax-xMin)*width, height);
+    }
+    for (yGrid = 0.0; yGrid < yMax; yGrid += 0.1) {
+      ctx.moveTo(0.0, (yGrid-yMin)/(yMax-yMin)*height);
+      ctx.lineTo(width, (yGrid-yMin)/(yMax-yMin)*height);
+    }
+    for (yGrid = 0.0; yGrid > yMin; yGrid -= 0.1) {
+      ctx.moveTo(0.0, (yGrid-yMin)/(yMax-yMin)*height);
+      ctx.lineTo(width, (yGrid-yMin)/(yMax-yMin)*height);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = "#667788";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (xGrid = 0.0; xGrid < xMax; xGrid += 1.0) {
+      ctx.moveTo((xGrid-xMin)/(xMax-xMin)*width, 0.0);
+      ctx.lineTo((xGrid-xMin)/(xMax-xMin)*width, height);
+    }
+    for (xGrid = 0.0; xGrid > xMin; xGrid -= 1.0) {
+      ctx.moveTo((xGrid-xMin)/(xMax-xMin)*width, 0.0);
+      ctx.lineTo((xGrid-xMin)/(xMax-xMin)*width, height);
+    }
+    for (yGrid = 0.0; yGrid < yMax; yGrid += 1.0) {
+      ctx.moveTo(0.0, (yGrid-yMin)/(yMax-yMin)*height);
+      ctx.lineTo(width, (yGrid-yMin)/(yMax-yMin)*height);
+    }
+    for (yGrid = 0.0; yGrid > yMin; yGrid -= 1.0) {
+      ctx.moveTo(0.0, (yGrid-yMin)/(yMax-yMin)*height);
+      ctx.lineTo(width, (yGrid-yMin)/(yMax-yMin)*height);
+    }
+    ctx.stroke();
+    var xPos = (xRobot-xMin)/(xMax-xMin)*width;
+    var yPos = (yMax-yRobot)/(yMax-yMin)*height;
+    ctx.translate(xPos, yPos);
+    ctx.rotate(-alphaRobot);
+    ctx.drawImage(robotImage, -25, -25, 50, 50);
+    ctx.rotate(alphaRobot);
+    ctx.translate(-xPos, -yPos);
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo((0.0-xMin)/(xMax-xMin)*width+6, (yMax-0.5)/(yMax-yMin)*height);
+    ctx.arc(   (0.0-xMin)/(xMax-xMin)*width,   (yMax-0.5)/(yMax-yMin)*height, 6, 0, 2*Math.PI, false);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo((2.0-xMin)/(xMax-xMin)*width+6, (yMax-0.5)/(yMax-yMin)*height);
+    ctx.arc(   (2.0-xMin)/(xMax-xMin)*width,   (yMax-0.5)/(yMax-yMin)*height, 6, 0, 2*Math.PI, false);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo((4.0-xMin)/(xMax-xMin)*width+6, (yMax-0.5)/(yMax-yMin)*height);
+    ctx.arc(   (4.0-xMin)/(xMax-xMin)*width,   (yMax-0.5)/(yMax-yMin)*height, 6, 0, 2*Math.PI, false);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo((6.0-xMin)/(xMax-xMin)*width+6, (yMax-0.5)/(yMax-yMin)*height);
+    ctx.arc(   (6.0-xMin)/(xMax-xMin)*width,   (yMax-0.5)/(yMax-yMin)*height, 6, 0, 2*Math.PI, false);
+    ctx.stroke();
+    ctx.strokeStyle = "#FF0000";
+    ctx.fillStyle = "#FF0000";
+    ctx.beginPath();
+    for (i = 0; i < Math.min(xBeacon.length, yBeacon.length); i++) {
+      ctx.moveTo((xBeacon[i]-xMin)/(xMax-xMin)*width, (yMax-yBeacon[i])/(yMax-yMin)*height);
+      ctx.arc(   (xBeacon[i]-xMin)/(xMax-xMin)*width, (yMax-yBeacon[i])/(yMax-yMin)*height, 4, 0, 2*Math.PI, false);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#FFFF00";
+    ctx.fillStyle = "#FFFF00";
+    ctx.beginPath();
+    for (i = 0; i < Math.min(x.length, y.length); i++) {
+      ctx.moveTo((x[i]-xMin)/(xMax-xMin)*width, (yMax-y[i])/(yMax-yMin)*height);
+      ctx.arc(   (x[i]-xMin)/(xMax-xMin)*width, (yMax-y[i])/(yMax-yMin)*height, 1.5, 0, 2*Math.PI, false);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, width-1, height-1);
+  }
+  </script>
+  <table width="100%" height="100%" border="0" frame="void" cellspacing="20" cellpadding="0">
+    <tr>
+      <th><canvas id="lidar"></canvas></th>
+    </tr>
+  </table>
+</body>
+</html>

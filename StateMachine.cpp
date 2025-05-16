@@ -91,25 +91,25 @@ void StateMachine::run() {
                 
                 if (buttonNow && !buttonBefore) {   // detect button rising edge
                     
+                    controller.setX(0.0f);
+                    controller.setY(0.0f);
+                    controller.setAlpha(0.0f);
+                    controller.resetGyroOffset();
+                    
                     enableMotorDriver = 1;
                     
-                    float velocity = 0.6f;
+                    float velocity = 0.2f;
                     float zone = 0.1f;
                     
                     taskList.push_back(new TaskWait(controller, 0.5f));
 
-                    for (int i = 0; i < 1; i++) {
+                    for (int i = 0; i < 3; i++) {
                         
-                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 1.0f, 0.0f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 4.0f, 0.0f, 0.0f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 6.0f, 1.0f, 0.0f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 6.5f, 0.5f, -3.142f/2, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 6.0f, 0.0f, 0.0f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 1.0f, -3.142f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 4.0f, 1.0f, -3.142f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 0.0f, -3.142f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 0.0f, 1.0f, -3.142f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, -0.5f, 0.5f, -3.142f/2, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 0.0f, 0.0f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.5f, 0.5f, 1.57f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 1.0f, 3.14f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 0.0f, 1.0f, 3.14f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, -0.5f, 0.5f, -1.57f, velocity, zone));
                         taskList.push_back(new TaskMoveTo(controller, 0.0f, 0.0f, 0.0f, velocity, zone));
                     }
                     
