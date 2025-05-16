@@ -14,7 +14,7 @@ const float TaskMoveTo::DEFAULT_ZONE = 0.05f;       // default zone value, given
 const float TaskMoveTo::M_PI = 3.14159265f;         // the mathematical constant PI
 const float TaskMoveTo::K1 = 2.0f;                  // position controller gain parameter
 const float TaskMoveTo::K2 = 2.0f;                  // position controller gain parameter
-const float TaskMoveTo::K3 = 1.0f;                  // position controller gain parameter
+const float TaskMoveTo::K3 = 1.15f;                  // position controller gain parameter
 
 /**
  * Creates a task object that moves the robot to a given pose.

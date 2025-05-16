@@ -39,6 +39,7 @@ class StateMachine {
         
         static const unsigned int   STACK_SIZE = 4096;  // stack size of thread, given in [bytes]
         static const float          PERIOD;             // period of task, given in [s]
+        static constexpr float      M_PI = 3.14159265f;
         
         static const float  DISTANCE_THRESHOLD;         // minimum allowed distance to obstacle in [m]
         static const float  TRANSLATIONAL_VELOCITY;     // translational velocity in [m/s]

@@ -98,18 +98,22 @@ void StateMachine::run() {
                     
                     enableMotorDriver = 1;
                     
-                    float velocity = 0.2f;
-                    float zone = 0.1f;
+                    float velocity = 1.4f;
+                    float zone = 0.15f;
                     
                     taskList.push_back(new TaskWait(controller, 0.5f));
 
                     for (int i = 0; i < 3; i++) {
                         
-                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 0.0f, 0.0f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 2.5f, 0.5f, 1.57f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 1.0f, 3.14f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, 0.0f, 1.0f, 3.14f, velocity, zone));
-                        taskList.push_back(new TaskMoveTo(controller, -0.5f, 0.5f, -1.57f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 1.0f, 0.0f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 4.0f, 0.0f, 0.0f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 6.0f, 1.0f, 0.0f, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 6.5f, 0.5f, -M_PI/2, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 6.0f, 0.0f, -M_PI, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 4.0f, 1.0f, -M_PI, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 2.0f, 0.0f, -M_PI, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, 0.0f, 1.0f, -M_PI, velocity, zone));
+                        taskList.push_back(new TaskMoveTo(controller, -0.5f, 0.5f, -M_PI/2, velocity, zone));
                         taskList.push_back(new TaskMoveTo(controller, 0.0f, 0.0f, 0.0f, velocity, zone));
                     }
                     
